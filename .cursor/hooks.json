@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": ".cursor/hooks/before-commit-quality.sh",
+        "matcher": "git\\s+commit\\b",
+        "timeout": 300,
+        "failClosed": true
+      }
+    ]
+  }
+}
