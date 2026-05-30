@@ -52,8 +52,9 @@ if ! "$python_bin" -m pytest --version >/dev/null 2>&1; then
 fi
 
 format_log="$(mktemp)"
+lint_log="$(mktemp)"
 test_log="$(mktemp)"
-trap 'rm -f "$format_log" "$test_log"' EXIT
+trap 'rm -f "$format_log" "$lint_log" "$test_log"' EXIT
 
 if ! "$python_bin" -m ruff format . >"$format_log" 2>&1; then
   emit_deny \
@@ -66,6 +67,13 @@ if ! git diff --quiet; then
   emit_deny \
     "Commit blocked: Ruff formatted files. Review and stage the formatting changes, then commit again." \
     "The before-commit quality hook ran ruff format and it changed files. The user needs to stage those changes before retrying git commit."
+  exit 0
+fi
+
+if ! "$python_bin" -m ruff check . >"$lint_log" 2>&1; then
+  emit_deny \
+    "Commit blocked: Ruff lint checks failed. Fix the lint issues and commit again." \
+    "The before-commit quality hook blocked git commit because ruff check failed. Output:\n$(tail -n 80 "$lint_log")"
   exit 0
 fi
 
