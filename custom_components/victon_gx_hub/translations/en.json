@@ -3,11 +3,35 @@
     "step": {
       "user": {
         "title": "Set up Victron GX",
-        "description": "Create a placeholder Victron GX integration entry."
+        "description": "Enter the connection details for your Victron GX device."
+      },
+      "ssdp_confirm": {
+        "title": "Confirm Victron GX device",
+        "description": "Do you want to set up {name}?"
+      },
+      "ssdp_auth": {
+        "title": "Victron GX authentication",
+        "description": "The device at {host} requires authentication."
+      },
+      "reconfigure": {
+        "title": "Reconfigure Victron GX",
+        "description": "Update the connection details for your Victron GX device."
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate Victron GX",
+        "description": "Update the credentials for {host}."
       }
     },
+    "error": {
+      "invalid_auth": "Invalid authentication credentials.",
+      "cannot_connect": "Unable to connect to the Victron GX device.",
+      "unknown": "Unexpected error occurred."
+    },
     "abort": {
-      "already_configured": "Victron GX is already configured."
+      "already_configured": "This Victron GX device is already configured.",
+      "cannot_connect": "Unable to connect to the discovered Victron GX device.",
+      "unknown": "Unexpected error occurred during discovery.",
+      "different_device": "The connection details point to a different Victron GX device."
     }
   }
 }
