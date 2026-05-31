@@ -17,6 +17,7 @@ When creating or drafting a pull request:
    ```
 
 3. Choose the PR title type from the actual change:
+
    - `feat`: new user-facing functionality
    - `fix`: bug fix
    - `docs`: documentation-only change
