@@ -387,6 +387,7 @@
     },
     "select": {
       "acsystem_mode": {
+        "name": "AC system mode",
         "state": {
           "charger_only": "[%key:component::victon_gx_hub::common::charger_only%]",
           "inverter_only": "[%key:component::victon_gx_hub::common::inverter_only%]",
@@ -404,6 +405,7 @@
         }
       },
       "inverter_mode": {
+        "name": "Inverter mode",
         "state": {
           "eco": "Eco",
           "inverter": "Inverter",
@@ -484,6 +486,7 @@
         }
       },
       "vebus_inverter_mode": {
+        "name": "VE.Bus inverter mode",
         "state": {
           "charger_only": "[%key:component::victon_gx_hub::common::charger_only%]",
           "inverter_only": "[%key:component::victon_gx_hub::common::inverter_only%]",
@@ -1230,6 +1233,7 @@
         "name": "MPPT {mpptnumber} power"
       },
       "multi_mppt_mpptnumber_state": {
+        "name": "MPPT {mpptnumber} state",
         "state": {
           "mppt_active": "[%key:component::victon_gx_hub::common::mppt_active%]",
           "not_available": "[%key:component::victon_gx_hub::common::not_available%]",
