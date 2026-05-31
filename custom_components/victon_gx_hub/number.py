@@ -1,5 +1,6 @@
 """Support for Victron GX number entities."""
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.number import NumberDeviceClass, NumberEntity
@@ -16,6 +17,8 @@ from victron_mqtt import (
 
 from .entity import VictronBaseEntity
 from .hub import VictronGxConfigEntry
+
+_LOGGER = logging.getLogger(__name__)
 
 PARALLEL_UPDATES = 0
 
@@ -35,12 +38,13 @@ METRIC_TYPE_TO_DEVICE_CLASS: dict[MetricType, NumberDeviceClass] = {
 
 
 async def async_setup_entry(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     config_entry: VictronGxConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up Victron GX number entities from a config entry."""
     hub = config_entry.runtime_data
+    seen_unique_ids: set[str] = set()
 
     def on_new_metric(
         device: VictronVenusDevice,
@@ -49,7 +53,15 @@ async def async_setup_entry(
         installation_id: str,
     ) -> None:
         """Handle new number metric discovery."""
-        assert isinstance(metric, VictronVenusWritableMetric)
+        if not isinstance(metric, VictronVenusWritableMetric):
+            _LOGGER.warning("Skipping non-writable number metric: %s", metric)
+            return
+        unique_id = f"{installation_id}_{metric.unique_id}"
+        if unique_id in seen_unique_ids:
+            _LOGGER.debug("Skipping duplicate number metric: %s", unique_id)
+            return
+        seen_unique_ids.add(unique_id)
+
         async_add_entities(
             [VictronNumber(device, metric, device_info, installation_id)]
         )
@@ -70,9 +82,9 @@ class VictronNumber(VictronBaseEntity, NumberEntity):
         """Initialize the number entity."""
         super().__init__(device, metric, device_info, installation_id)
         self._attr_device_class = METRIC_TYPE_TO_DEVICE_CLASS.get(metric.metric_type)
-        if self._attr_device_class is not None:
+        if metric.unit_of_measurement is not None:
             self._attr_native_unit_of_measurement = metric.unit_of_measurement
-        self._attr_native_value = metric.value
+        self._attr_native_value = self._convert_native_value(metric.value)
         if metric.min_value is not None:
             self._attr_native_min_value = metric.min_value
         if metric.max_value is not None:
@@ -82,11 +94,21 @@ class VictronNumber(VictronBaseEntity, NumberEntity):
 
     @callback
     def _on_update_cb(self, value: Any) -> None:
-        self._attr_native_value = value
+        self._attr_native_value = self._convert_native_value(value)
         self.async_write_ha_state()
 
     async def async_set_native_value(self, value: float) -> None:
         """Set a new value."""
         if TYPE_CHECKING:
             assert isinstance(self._metric, VictronVenusWritableMetric)
-        self._metric.set(value)
+        await self.hass.async_add_executor_job(self._metric.set, value)
+
+    @staticmethod
+    def _convert_native_value(value: Any) -> float | None:
+        """Convert a Victron numeric value to a Home Assistant number value."""
+        if value is None:
+            return None
+        if isinstance(value, int | float) and not isinstance(value, bool):
+            return float(value)
+        _LOGGER.warning("Ignoring non-numeric number value: %s", value)
+        return None
