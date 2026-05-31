@@ -20,7 +20,12 @@ from homeassistant.helpers.redact import async_redact_data
 from victron_mqtt import AuthenticationError, CannotConnectError, Hub as VictronVenusHub
 import voluptuous as vol
 
-from .const import CONF_INSTALLATION_ID, CONF_SERIAL, DOMAIN
+from .const import (
+    CONF_INSTALLATION_ID,
+    CONF_SERIAL,
+    CONF_UPDATE_INTERVAL_SECONDS,
+    DOMAIN,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -36,6 +41,16 @@ TO_REDACT = {CONF_USERNAME, CONF_PASSWORD}
 
 ENTRY_TITLE_FORMAT = "Victron OS {installation_id} ({host}:{port})"
 
+UPDATE_INTERVAL_SELECTOR = selector.NumberSelector(
+    selector.NumberSelectorConfig(
+        min=1,
+        max=300,
+        step=1,
+        mode=selector.NumberSelectorMode.BOX,
+        unit_of_measurement="s",
+    )
+)
+
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST, default=DEFAULT_HOST): selector.TextSelector(),
@@ -45,6 +60,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
             selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
         ),
         vol.Required(CONF_SSL, default=False): selector.BooleanSelector(),
+        vol.Optional(CONF_UPDATE_INTERVAL_SECONDS): UPDATE_INTERVAL_SELECTOR,
     }
 )
 
@@ -55,6 +71,7 @@ STEP_SSDP_AUTH_DATA_SCHEMA = vol.Schema(
             selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
         ),
         vol.Optional(CONF_SSL, default=False): selector.BooleanSelector(),
+        vol.Optional(CONF_UPDATE_INTERVAL_SECONDS): UPDATE_INTERVAL_SELECTOR,
     }
 )
 
@@ -88,6 +105,7 @@ async def validate_input(data: dict[str, Any]) -> str:
             installation_id=data.get(CONF_INSTALLATION_ID) or None,
             model_name=data.get(CONF_MODEL) or None,
             serial=data.get(CONF_SERIAL) or None,
+            update_frequency_seconds=data.get(CONF_UPDATE_INTERVAL_SECONDS),
         )
 
         await hub.connect()
@@ -116,7 +134,21 @@ def _apply_credential_updates(
             data[CONF_PASSWORD] = user_input[CONF_PASSWORD]
         else:
             data[CONF_PASSWORD] = existing_data.get(CONF_PASSWORD)
-    return data
+    return _normalize_update_interval(data)
+
+
+def _normalize_update_interval(data: dict[str, Any]) -> dict[str, Any]:
+    """Normalize optional update interval, omitting blank values."""
+    normalized = dict(data)
+    if CONF_UPDATE_INTERVAL_SECONDS not in normalized:
+        return normalized
+
+    value = normalized[CONF_UPDATE_INTERVAL_SECONDS]
+    if value in (None, ""):
+        normalized.pop(CONF_UPDATE_INTERVAL_SECONDS, None)
+    else:
+        normalized[CONF_UPDATE_INTERVAL_SECONDS] = int(value)
+    return normalized
 
 
 class VictronGxConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -175,7 +207,9 @@ class VictronGxConfigFlow(ConfigFlow, domain=DOMAIN):
                     host=data[CONF_HOST],
                     port=data[CONF_PORT],
                 )
-                return self.async_create_entry(title=title, data=data)
+                return self.async_create_entry(
+                    title=title, data=_normalize_update_interval(data)
+                )
 
         _LOGGER.debug("Showing form with errors: %s", errors)
         return self.async_show_form(
@@ -307,7 +341,7 @@ class VictronGxConfigFlow(ConfigFlow, domain=DOMAIN):
                         host=self.hostname,
                         port=DEFAULT_PORT,
                     ),
-                    data=data,
+                    data=_normalize_update_interval(data),
                 )
 
         return self.async_show_form(
@@ -355,6 +389,9 @@ class VictronGxConfigFlow(ConfigFlow, domain=DOMAIN):
             CONF_PORT: reconfigure_entry.data[CONF_PORT],
             CONF_USERNAME: reconfigure_entry.data.get(CONF_USERNAME),
             CONF_SSL: reconfigure_entry.data.get(CONF_SSL, False),
+            CONF_UPDATE_INTERVAL_SECONDS: reconfigure_entry.data.get(
+                CONF_UPDATE_INTERVAL_SECONDS
+            ),
         }
         if user_input is not None:
             suggested_values.update(user_input)

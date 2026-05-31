@@ -29,11 +29,14 @@ from victron_mqtt import (
     VictronEnum,
 )
 
-from .const import CONF_INSTALLATION_ID, CONF_SERIAL, DOMAIN
+from .const import (
+    CONF_INSTALLATION_ID,
+    CONF_SERIAL,
+    CONF_UPDATE_INTERVAL_SECONDS,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
-
-UPDATE_INTERVAL_SECONDS = None  # 30
 
 TO_REDACT = {CONF_USERNAME, CONF_PASSWORD}
 
@@ -74,7 +77,7 @@ class Hub:
             model_name=config.get(CONF_MODEL) or None,
             serial=config.get(CONF_SERIAL) or None,
             operation_mode=OperationMode.FULL,
-            update_frequency_seconds=UPDATE_INTERVAL_SECONDS,
+            update_frequency_seconds=config.get(CONF_UPDATE_INTERVAL_SECONDS),
         )
         self._hub.on_new_metric = self._on_new_metric
         self.new_metric_callbacks: dict[MetricKind, NewMetricCallback] = {}

@@ -3,7 +3,13 @@
     "step": {
       "user": {
         "title": "Set up Victron GX",
-        "description": "Enter the connection details for your Victron GX device."
+        "description": "Enter the connection details for your Victron GX device.",
+        "data": {
+          "update_interval_seconds": "Update interval"
+        },
+        "data_description": {
+          "update_interval_seconds": "Seconds between hub updates. Leave blank for default."
+        }
       },
       "ssdp_confirm": {
         "title": "Confirm Victron GX device",
@@ -11,11 +17,23 @@
       },
       "ssdp_auth": {
         "title": "Victron GX authentication",
-        "description": "The device at {host} requires authentication."
+        "description": "The device at {host} requires authentication.",
+        "data": {
+          "update_interval_seconds": "Update interval"
+        },
+        "data_description": {
+          "update_interval_seconds": "Seconds between hub updates. Leave blank for default."
+        }
       },
       "reconfigure": {
         "title": "Reconfigure Victron GX",
-        "description": "Update the connection details for your Victron GX device."
+        "description": "Update the connection details for your Victron GX device.",
+        "data": {
+          "update_interval_seconds": "Update interval"
+        },
+        "data_description": {
+          "update_interval_seconds": "Seconds between hub updates. Leave blank for default."
+        }
       },
       "reauth_confirm": {
         "title": "Reauthenticate Victron GX",
