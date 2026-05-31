@@ -1,5 +1,6 @@
 """Support for Victron GX sensors."""
 
+import logging
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -21,6 +22,8 @@ from victron_mqtt import (
 
 from .entity import VictronBaseEntity
 from .hub import VictronGxConfigEntry
+
+_LOGGER = logging.getLogger(__name__)
 
 PARALLEL_UPDATES = 0  # There is no I/O in the entity itself.
 
@@ -47,12 +50,13 @@ METRIC_NATURE_TO_STATE_CLASS: dict[MetricNature, SensorStateClass] = {
 
 
 async def async_setup_entry(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     config_entry: VictronGxConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up Victron GX sensors from a config entry."""
     hub = config_entry.runtime_data
+    seen_unique_ids: set[str] = set()
 
     def on_new_metric(
         device: VictronVenusDevice,
@@ -61,15 +65,14 @@ async def async_setup_entry(
         installation_id: str,
     ) -> None:
         """Handle new sensor metric discovery."""
+        unique_id = f"{installation_id}_{metric.unique_id}"
+        if unique_id in seen_unique_ids:
+            _LOGGER.debug("Skipping duplicate sensor metric: %s", unique_id)
+            return
+        seen_unique_ids.add(unique_id)
+
         async_add_entities(
-            [
-                VictronSensor(
-                    device,
-                    metric,
-                    device_info,
-                    installation_id,
-                )
-            ]
+            [VictronSensor(device, metric, device_info, installation_id)]
         )
 
     hub.register_new_metric_callback(MetricKind.SENSOR, on_new_metric)
@@ -90,7 +93,7 @@ class VictronSensor(VictronBaseEntity, SensorEntity):
         self._attr_device_class = METRIC_TYPE_TO_DEVICE_CLASS.get(metric.metric_type)
         # Enum sensors must not have a state class
         if self._attr_device_class == SensorDeviceClass.ENUM:
-            self._attr_options = metric.enum_values
+            self._attr_options = metric.enum_values or []
         else:
             self._attr_state_class = METRIC_NATURE_TO_STATE_CLASS.get(
                 metric.metric_nature
@@ -100,16 +103,44 @@ class VictronSensor(VictronBaseEntity, SensorEntity):
         # the translation files instead.
         if self._attr_device_class is not None:
             self._attr_native_unit_of_measurement = metric.unit_of_measurement
-        self._attr_native_value = VictronSensor._normalize_value(metric.value)
+        self._attr_native_value = self._normalize_value(metric.value)
 
     @callback
     def _on_update_cb(self, value: Any) -> None:
-        self._attr_native_value = VictronSensor._normalize_value(value)
+        self._attr_native_value = self._normalize_value(value)
         self.async_write_ha_state()
 
-    @staticmethod
-    def _normalize_value(value: Any) -> Any:
-        """Normalize Victron enum values to their enum code."""
+    def _normalize_value(self, value: Any) -> Any:
+        """Normalize Victron metric values for Home Assistant."""
+        if value is None:
+            return None
+        if self._attr_device_class == SensorDeviceClass.ENUM:
+            return self._normalize_enum_value(value)
+        if self._attr_device_class is not None:
+            return self._normalize_numeric_value(value)
         if isinstance(value, VictronEnum):
             return value.id
         return value
+
+    def _normalize_enum_value(self, value: Any) -> str | None:
+        """Normalize Victron enum values to their enum code."""
+        options = self.options or []
+        if isinstance(value, VictronEnum):
+            if value.id in options:
+                return value.id
+            if 0 <= value.code < len(options):
+                return options[value.code]
+            _LOGGER.warning("Sensor value %s is not in options: %s", value, options)
+            return None
+        if isinstance(value, str) and value in options:
+            return value
+        _LOGGER.warning("Ignoring sensor value not in options: %s", value)
+        return None
+
+    @staticmethod
+    def _normalize_numeric_value(value: Any) -> float | None:
+        """Convert a Victron numeric value to a Home Assistant sensor value."""
+        if isinstance(value, int | float) and not isinstance(value, bool):
+            return float(value)
+        _LOGGER.warning("Ignoring non-numeric sensor value: %s", value)
+        return None
