@@ -24,12 +24,13 @@ PARALLEL_UPDATES = 0  # There is no I/O in the entity itself.
 
 
 async def async_setup_entry(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     config_entry: VictronGxConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up Victron GX select entities from a config entry."""
     hub = config_entry.runtime_data
+    seen_unique_ids: set[str] = set()
 
     def on_new_metric(
         device: VictronVenusDevice,
@@ -38,7 +39,18 @@ async def async_setup_entry(
         installation_id: str,
     ) -> None:
         """Handle new select metric discovery."""
-        assert isinstance(metric, VictronVenusWritableMetric)
+        if not isinstance(metric, VictronVenusWritableMetric):
+            _LOGGER.warning("Skipping non-writable select metric: %s", metric)
+            return
+        if not metric.enum_values:
+            _LOGGER.warning("Skipping select metric without options: %s", metric)
+            return
+        unique_id = f"{installation_id}_{metric.unique_id}"
+        if unique_id in seen_unique_ids:
+            _LOGGER.debug("Skipping duplicate select metric: %s", unique_id)
+            return
+        seen_unique_ids.add(unique_id)
+
         async_add_entities(
             [VictronSelect(device, metric, device_info, installation_id)]
         )
@@ -58,24 +70,37 @@ class VictronSelect(VictronBaseEntity, SelectEntity):
     ) -> None:
         """Initialize the select entity."""
         super().__init__(device, metric, device_info, installation_id)
-        if TYPE_CHECKING:
-            assert metric.enum_values, "Select metric will always have enum values"
-        self._attr_options = metric.enum_values
-        self._attr_current_option = VictronSelect._normalize_value(metric.value)
+        self._attr_options = metric.enum_values or []
+        self._attr_current_option = self._normalize_value(metric.value)
 
     @callback
     def _on_update_cb(self, value: Any) -> None:
-        self._attr_current_option = VictronSelect._normalize_value(value)
+        self._attr_current_option = self._normalize_value(value)
         self.async_write_ha_state()
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
         if TYPE_CHECKING:
             assert isinstance(self._metric, VictronVenusWritableMetric)
-        _LOGGER.debug("Setting select %s to %s", self._attr_unique_id, option)
-        self._metric.set(option)
+        if option not in self.options:
+            raise ValueError(option)
+        _LOGGER.debug("Setting select %s to %s", self.unique_id, option)
+        await self.hass.async_add_executor_job(self._metric.set, option)
 
-    @staticmethod
-    def _normalize_value(value: Any) -> Any:
+    def _normalize_value(self, value: Any) -> str | None:
         """Normalize Victron enum values to their enum code."""
-        return value.id if isinstance(value, VictronEnum) else value
+        if value is None:
+            return None
+        if isinstance(value, VictronEnum):
+            if value.id in self.options:
+                return value.id
+            if 0 <= value.code < len(self.options):
+                return self.options[value.code]
+            _LOGGER.warning(
+                "Select value %s is not in options: %s", value, self.options
+            )
+            return None
+        if isinstance(value, str) and value in self.options:
+            return value
+        _LOGGER.warning("Ignoring select value not in options: %s", value)
+        return None
