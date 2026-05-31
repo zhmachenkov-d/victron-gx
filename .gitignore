@@ -195,9 +195,9 @@ cython_debug/
 .abstra/
 
 # Visual Studio Code
-#   Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore 
+#   Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore
 #   that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
-#   and can be added to the global gitignore or merged into this file. However, if you prefer, 
+#   and can be added to the global gitignore or merged into this file. However, if you prefer,
 #   you could uncomment the following to ignore the entire vscode folder
 # .vscode/
 # Temporary file for partial code execution
@@ -216,3 +216,33 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+config/.ha_run.lock
+config/.HA_VERSION
+config/home-assistant_v2.db
+config/home-assistant.log.1
+config/.storage/assist_pipeline.pipelines
+config/.storage/auth
+config/.storage/core.config_entries
+config/.storage/core.device_registry
+config/.storage/core.entity_registry
+config/.storage/core.restore_state
+config/.storage/core.uuid
+config/.storage/homeassistant.exposed_entities
+config/.storage/http
+config/.storage/http.auth
+config/.storage/repairs.issue_registry
+config/.storage/trace.saved_traces
+config/blueprints/automation/homeassistant/motion_light.yaml
+config/blueprints/automation/homeassistant/notify_leaving_zone.yaml
+config/blueprints/script/homeassistant/confirmable_notification.yaml
+config/custom_components/victon_gx_hub
+config/home-assistant.log.fault
+config/.storage/auth_provider.homeassistant
+config/.storage/core.analytics
+config/.storage/core.area_registry
+config/.storage/core.config
+config/.storage/frontend.system_data
+config/.storage/lovelace_dashboards
+config/.storage/lovelace.map
+config/.storage/onboarding
+config/.storage/person

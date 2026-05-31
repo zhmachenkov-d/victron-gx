@@ -2,18 +2,76 @@
 
 from __future__ import annotations
 
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+import logging
+from typing import TYPE_CHECKING
 
-type VictronGxConfigEntry = ConfigEntry[None]
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform
+
+from .hub import Hub, VictronGxConfigEntry
+
+if TYPE_CHECKING:
+    from homeassistant.core import Event, HomeAssistant
+    from homeassistant.helpers import device_registry as dr
+
+_LOGGER = logging.getLogger(__name__)
+
+PLATFORMS: list[Platform] = [
+    Platform.BINARY_SENSOR,
+    Platform.BUTTON,
+    Platform.DEVICE_TRACKER,
+    Platform.NUMBER,
+    Platform.SELECT,
+    Platform.SENSOR,
+    Platform.SWITCH,
+    Platform.TIME,
+]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: VictronGxConfigEntry) -> bool:
-    """Set up Victron GX from a config entry."""
-    entry.runtime_data = None
+    """Set up victron_gx from a config entry."""
+    _LOGGER.debug("async_setup_entry called for entry: %s", entry.entry_id)
+
+    hub = Hub(hass, entry)
+    entry.runtime_data = hub
+
+    # All platforms should be set up before starting the hub
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    try:
+        await hub.start()
+    except Exception:
+        _LOGGER.exception("Error starting hub for entry %s", entry.entry_id)
+        await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+        hub.unregister_all_new_metric_callbacks()
+        raise
+
+    async def _async_stop(_: Event) -> None:
+        await hub.stop()
+
+    entry.async_on_unload(
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _async_stop)
+    )
+
+    _LOGGER.debug("async_setup_entry completed for entry: %s", entry.entry_id)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: VictronGxConfigEntry) -> bool:
     """Unload a config entry."""
-    return True
+    _LOGGER.debug("async_unload_entry called for entry: %s", entry.entry_id)
+    hub = entry.runtime_data
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unload_ok:
+        await hub.stop()
+        hub.unregister_all_new_metric_callbacks()
+
+    return unload_ok
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant,
+    config_entry: VictronGxConfigEntry,
+    device_entry: dr.DeviceEntry,
+) -> bool:
+    """Remove a device from the config entry if the device is no longer known."""
+    hub: Hub = config_entry.runtime_data
+    return not hub.is_device_connected(device_entry.identifiers)
