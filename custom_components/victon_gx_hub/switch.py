@@ -1,5 +1,6 @@
 """Support for Victron GX switches."""
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.switch import SwitchEntity
@@ -18,16 +19,19 @@ from .const import BINARY_SENSOR_OFF_ID, BINARY_SENSOR_ON_ID
 from .entity import VictronBaseEntity
 from .hub import VictronGxConfigEntry
 
+_LOGGER = logging.getLogger(__name__)
+
 PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     config_entry: VictronGxConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up Victron GX switches from a config entry."""
     hub = config_entry.runtime_data
+    seen_unique_ids: set[str] = set()
 
     def on_new_metric(
         device: VictronVenusDevice,
@@ -36,8 +40,15 @@ async def async_setup_entry(
         installation_id: str,
     ) -> None:
         """Handle new switch metric discovery."""
-        if TYPE_CHECKING:
-            assert isinstance(metric, VictronVenusWritableMetric)
+        if not isinstance(metric, VictronVenusWritableMetric):
+            _LOGGER.warning("Skipping non-writable switch metric: %s", metric)
+            return
+        unique_id = f"{installation_id}_{metric.unique_id}"
+        if unique_id in seen_unique_ids:
+            _LOGGER.debug("Skipping duplicate switch metric: %s", unique_id)
+            return
+        seen_unique_ids.add(unique_id)
+
         async_add_entities(
             [VictronSwitch(device, metric, device_info, installation_id)]
         )
@@ -70,10 +81,12 @@ class VictronSwitch(VictronBaseEntity, SwitchEntity):
         """Turn the switch on."""
         if TYPE_CHECKING:
             assert isinstance(self._metric, VictronVenusWritableMetric)
-        self._metric.set(BINARY_SENSOR_ON_ID)
+        _LOGGER.debug("Turning on switch: %s", self.unique_id)
+        await self.hass.async_add_executor_job(self._metric.set, BINARY_SENSOR_ON_ID)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the switch off."""
         if TYPE_CHECKING:
             assert isinstance(self._metric, VictronVenusWritableMetric)
-        self._metric.set(BINARY_SENSOR_OFF_ID)
+        _LOGGER.debug("Turning off switch: %s", self.unique_id)
+        await self.hass.async_add_executor_job(self._metric.set, BINARY_SENSOR_OFF_ID)
