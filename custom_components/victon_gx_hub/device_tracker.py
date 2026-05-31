@@ -22,15 +22,18 @@ PARALLEL_UPDATES = 0
 ATTR_ALTITUDE = "altitude"
 ATTR_COURSE = "course"
 ATTR_SPEED = "speed"
+ATTR_SPEED_UNIT = "speed_unit"
+SPEED_UNIT_METERS_PER_SECOND = "m/s"
 
 
 async def async_setup_entry(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     config_entry: VictronGxConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up Victron GX device trackers from a config entry."""
     hub = config_entry.runtime_data
+    seen_unique_ids: set[str] = set()
 
     def on_new_metric(
         device: VictronVenusDevice,
@@ -39,6 +42,11 @@ async def async_setup_entry(
         installation_id: str,
     ) -> None:
         """Handle new device tracker metric discovery."""
+        unique_id = f"{installation_id}_{metric.unique_id}"
+        if unique_id in seen_unique_ids:
+            return
+        seen_unique_ids.add(unique_id)
+
         async_add_entities(
             [VictronDeviceTracker(device, metric, device_info, installation_id)]
         )
@@ -89,7 +97,11 @@ class VictronDeviceTracker(VictronBaseEntity, TrackerEntity):
     def extra_state_attributes(self) -> dict[str, StateType]:
         """Return extra state attributes for altitude, course, and speed."""
         attrs: dict[str, StateType] = {}
-        attrs[ATTR_ALTITUDE] = self._altitude
-        attrs[ATTR_COURSE] = self._course
-        attrs[ATTR_SPEED] = self._speed
+        if self._altitude is not None:
+            attrs[ATTR_ALTITUDE] = self._altitude
+        if self._course is not None:
+            attrs[ATTR_COURSE] = self._course
+        if self._speed is not None:
+            attrs[ATTR_SPEED] = self._speed
+            attrs[ATTR_SPEED_UNIT] = SPEED_UNIT_METERS_PER_SECOND
         return attrs
