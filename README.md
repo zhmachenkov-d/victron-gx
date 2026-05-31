@@ -1,10 +1,68 @@
-# victron-gx
+# Victron GX Hub
 
-Home Assistant integration for Victron GX devices.
+Home Assistant custom integration for Victron GX devices running Venus OS.
 
-## Development setup
+The integration connects to the GX device over local MQTT using
+[`victron-mqtt`](https://pypi.org/project/victron-mqtt/) and creates Home
+Assistant entities as Victron metrics are discovered.
 
-Run the bootstrap script from the repository root (creates `.venv`, installs dependencies, and registers git hooks):
+## Features
+
+- Local push integration over MQTT (`iot_class: local_push`)
+- UI-based config flow
+- SSDP discovery for GX devices with MQTT on LAN enabled
+- Reauthentication and reconfiguration flows
+- Device registry support, including parent/child device relationships
+- Diagnostics with sensitive location data redacted
+- Entity support for:
+  - Binary sensors
+  - Buttons
+  - Device trackers
+  - Numbers
+  - Selects
+  - Sensors
+  - Switches
+  - Time entities
+
+## Requirements
+
+- Home Assistant `2026.5.0` or newer for this development branch
+- A Victron GX device with MQTT on LAN enabled
+- Network access from Home Assistant to the GX device MQTT broker
+
+The integration package installs `victron-mqtt==2026.5.4` through
+`custom_components/victon_gx_hub/manifest.json`.
+
+## Installation
+
+Copy `custom_components/victon_gx_hub` into your Home Assistant
+`custom_components` directory, then restart Home Assistant.
+
+After restart, add the integration from:
+
+```text
+Settings -> Devices & services -> Add integration -> Victron GX Hub
+```
+
+If SSDP discovery succeeds, Home Assistant can show the device automatically.
+
+## Configuration
+
+Manual setup asks for:
+
+- Host, for example `venus.local` or the GX device IP address
+- MQTT port, default `1883`
+- Optional username and password
+- SSL on/off
+- Optional update interval in seconds
+
+Discovered devices may also ask for credentials if the first connection attempt
+requires authentication.
+
+## Development Setup
+
+Run the bootstrap script from the repository root. It creates `.venv`, installs
+dependencies, and registers git hooks:
 
 ```bash
 scripts/setup-dev.sh
@@ -16,14 +74,29 @@ Activate the virtual environment for interactive work:
 source .venv/bin/activate
 ```
 
-### Dev container
+Opening this repository in a dev container runs `scripts/setup-dev.sh`
+automatically via `postCreateCommand`.
 
-Opening this repository in a dev container runs `scripts/setup-dev.sh` automatically via `postCreateCommand`.
+## Quality Checks
 
-### Quality checks
-
-Git commits run [pre-commit](https://pre-commit.com/) hooks (Ruff lint/format and pytest). Run them manually with:
+Git commits run [pre-commit](https://pre-commit.com/) hooks for Ruff,
+formatting, spelling, and tests. Run them manually with:
 
 ```bash
 .venv/bin/pre-commit run --all-files
+```
+
+Run the test suite directly with:
+
+```bash
+.venv/bin/pytest tests/
+```
+
+Run tests with coverage:
+
+```bash
+.venv/bin/python -m pytest \
+  --cov=custom_components/victon_gx_hub \
+  --cov-report=term \
+  tests/
 ```
