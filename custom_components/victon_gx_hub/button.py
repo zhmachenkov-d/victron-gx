@@ -24,12 +24,13 @@ PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     config_entry: VictronGxConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up Victron GX button entities from a config entry."""
     hub = config_entry.runtime_data
+    seen_unique_ids: set[str] = set()
 
     def on_new_metric(
         device: VictronVenusDevice,
@@ -38,8 +39,15 @@ async def async_setup_entry(
         installation_id: str,
     ) -> None:
         """Handle new button metric discovery."""
-        if TYPE_CHECKING:
-            assert isinstance(metric, VictronVenusWritableMetric)
+        if not isinstance(metric, VictronVenusWritableMetric):
+            _LOGGER.warning("Skipping non-writable button metric: %s", metric)
+            return
+        unique_id = f"{installation_id}_{metric.unique_id}"
+        if unique_id in seen_unique_ids:
+            _LOGGER.debug("Skipping duplicate button metric: %s", unique_id)
+            return
+        seen_unique_ids.add(unique_id)
+
         async_add_entities(
             [VictronButton(device, metric, device_info, installation_id)]
         )
@@ -61,4 +69,4 @@ class VictronButton(VictronBaseEntity, ButtonEntity):
         if TYPE_CHECKING:
             assert isinstance(self._metric, VictronVenusWritableMetric)
         _LOGGER.debug("Pressing button: %s", self.unique_id)
-        self._metric.set(GenericOnOff.ON)
+        await self.hass.async_add_executor_job(self._metric.set, GenericOnOff.ON)
