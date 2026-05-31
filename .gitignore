@@ -236,3 +236,13 @@ config/blueprints/automation/homeassistant/motion_light.yaml
 config/blueprints/automation/homeassistant/notify_leaving_zone.yaml
 config/blueprints/script/homeassistant/confirmable_notification.yaml
 config/custom_components/victon_gx_hub
+config/home-assistant.log.fault
+config/.storage/auth_provider.homeassistant
+config/.storage/core.analytics
+config/.storage/core.area_registry
+config/.storage/core.config
+config/.storage/frontend.system_data
+config/.storage/lovelace_dashboards
+config/.storage/lovelace.map
+config/.storage/onboarding
+config/.storage/person

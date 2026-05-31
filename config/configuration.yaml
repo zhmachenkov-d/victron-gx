@@ -4,5 +4,3 @@ logger:
   default: info
   logs:
     custom_components.victon_gx_hub: debug
-
-victon_gx_hub: {}
