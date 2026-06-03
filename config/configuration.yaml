@@ -3,4 +3,4 @@ default_config:
 logger:
   default: info
   logs:
-    custom_components.victon_gx_hub: debug
+    custom_components.victron_gx_hub: debug

@@ -47,7 +47,7 @@ jobs:
       - name: pytest with coverage
         run: |
           pytest \
-            --cov=custom_components/victon_gx_hub \
+            --cov=custom_components/victron_gx_hub \
             --cov-report=term \
             tests/
 

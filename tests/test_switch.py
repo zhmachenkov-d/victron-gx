@@ -23,12 +23,12 @@ from victron_mqtt import (
 )
 from victron_mqtt._victron_enums import ACSystemMode, GenericOnOff
 
-from custom_components.victon_gx_hub.const import (
+from custom_components.victron_gx_hub.const import (
     BINARY_SENSOR_OFF_ID,
     BINARY_SENSOR_ON_ID,
     DOMAIN,
 )
-from custom_components.victon_gx_hub.switch import VictronSwitch, async_setup_entry
+from custom_components.victron_gx_hub.switch import VictronSwitch, async_setup_entry
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant

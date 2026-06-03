@@ -15,12 +15,12 @@ from homeassistant.const import (
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.victon_gx_hub.const import (
+from custom_components.victron_gx_hub.const import (
     CONF_INSTALLATION_ID,
     CONF_SERIAL,
     DOMAIN,
 )
-from custom_components.victon_gx_hub.diagnostics import (
+from custom_components.victron_gx_hub.diagnostics import (
     async_get_config_entry_diagnostics,
 )
 

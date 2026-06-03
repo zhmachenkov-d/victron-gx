@@ -2,7 +2,7 @@
 
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 
-DOMAIN = "victon_gx_hub"
+DOMAIN = "victron_gx_hub"
 
 CONF_INSTALLATION_ID = "installation_id"
 CONF_SERIAL = "serial"

@@ -26,14 +26,14 @@ from victron_mqtt import (
     OperationMode,
 )
 
-from custom_components.victon_gx_hub import hub as hub_module
-from custom_components.victon_gx_hub.const import (
+from custom_components.victron_gx_hub import hub as hub_module
+from custom_components.victron_gx_hub.const import (
     CONF_INSTALLATION_ID,
     CONF_SERIAL,
     CONF_UPDATE_INTERVAL_SECONDS,
     DOMAIN,
 )
-from custom_components.victon_gx_hub.hub import Hub
+from custom_components.victron_gx_hub.hub import Hub
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant

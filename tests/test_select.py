@@ -23,8 +23,8 @@ from victron_mqtt import (
 )
 from victron_mqtt._victron_enums import GenericOnOff
 
-from custom_components.victon_gx_hub.const import DOMAIN
-from custom_components.victon_gx_hub.select import VictronSelect, async_setup_entry
+from custom_components.victron_gx_hub.const import DOMAIN
+from custom_components.victron_gx_hub.select import VictronSelect, async_setup_entry
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant

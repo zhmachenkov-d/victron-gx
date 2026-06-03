@@ -31,11 +31,11 @@ Assistant entities as Victron metrics are discovered.
 - Network access from Home Assistant to the GX device MQTT broker
 
 The integration package installs `victron-mqtt==2026.5.4` through
-`custom_components/victon_gx_hub/manifest.json`.
+`custom_components/victron_gx_hub/manifest.json`.
 
 ## Installation
 
-Copy `custom_components/victon_gx_hub` into your Home Assistant
+Copy `custom_components/victron_gx_hub` into your Home Assistant
 `custom_components` directory, then restart Home Assistant.
 
 After restart, add the integration from:
@@ -96,7 +96,7 @@ Run tests with coverage:
 
 ```bash
 .venv/bin/python -m pytest \
-  --cov=custom_components/victon_gx_hub \
+  --cov=custom_components/victron_gx_hub \
   --cov-report=term \
   tests/
 ```
