@@ -1,5 +1,5 @@
 {
-  "domain": "victon_gx_hub",
+  "domain": "victron_gx_hub",
   "name": "Victron GX Hub",
   "codeowners": ["@zhmachenkov-d"],
   "config_flow": true,
@@ -14,5 +14,5 @@
       "manufacturer": "Victron Energy"
     }
   ],
-  "version": "0.1.0"
+  "version": "1.0.0"
 }

@@ -235,7 +235,7 @@ config/.storage/trace.saved_traces
 config/blueprints/automation/homeassistant/motion_light.yaml
 config/blueprints/automation/homeassistant/notify_leaving_zone.yaml
 config/blueprints/script/homeassistant/confirmable_notification.yaml
-config/custom_components/victon_gx_hub
+config/custom_components/victron_gx_hub
 config/home-assistant.log.fault
 config/.storage/auth_provider.homeassistant
 config/.storage/core.analytics

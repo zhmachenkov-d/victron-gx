@@ -19,15 +19,15 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from victron_mqtt import AuthenticationError, CannotConnectError
 
-from custom_components.victon_gx_hub import config_flow
-from custom_components.victon_gx_hub.config_flow import (
+from custom_components.victron_gx_hub import config_flow
+from custom_components.victron_gx_hub.config_flow import (
     DEFAULT_PORT,
     ENTRY_TITLE_FORMAT,
     _apply_credential_updates,
     _normalize_update_interval,
     validate_input,
 )
-from custom_components.victon_gx_hub.const import (
+from custom_components.victron_gx_hub.const import (
     CONF_INSTALLATION_ID,
     CONF_SERIAL,
     CONF_UPDATE_INTERVAL_SECONDS,
@@ -72,7 +72,7 @@ def fake_victron_hub(monkeypatch: pytest.MonkeyPatch) -> type[FakeVictronVenusHu
     FakeVictronVenusHub.instances = []
     monkeypatch.setattr(config_flow, "VictronVenusHub", FakeVictronVenusHub)
     monkeypatch.setattr(
-        "custom_components.victon_gx_hub.async_setup_entry",
+        "custom_components.victron_gx_hub.async_setup_entry",
         AsyncMock(return_value=True),
     )
     return FakeVictronVenusHub

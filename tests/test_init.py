@@ -9,13 +9,13 @@ from homeassistant.const import CONF_HOST, EVENT_HOMEASSISTANT_STOP
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.victon_gx_hub import (
+from custom_components.victron_gx_hub import (
     PLATFORMS,
     async_remove_config_entry_device,
     async_setup_entry,
     async_unload_entry,
 )
-from custom_components.victon_gx_hub.const import DOMAIN
+from custom_components.victron_gx_hub.const import DOMAIN
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -63,7 +63,7 @@ def fake_hub_factory(monkeypatch: pytest.MonkeyPatch) -> list[FakeHub]:
         created_hubs.append(hub)
         return hub
 
-    monkeypatch.setattr("custom_components.victon_gx_hub.Hub", _make_hub)
+    monkeypatch.setattr("custom_components.victron_gx_hub.Hub", _make_hub)
     monkeypatch.setattr(FakeHub, "start_side_effect", None)
     return created_hubs
 

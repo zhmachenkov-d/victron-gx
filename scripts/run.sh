@@ -25,9 +25,9 @@ if [[ ! -d "${CONFIG_DIR}" ]]; then
 fi
 
 mkdir -p "${CONFIG_DIR}/custom_components"
-INTEGRATION_LINK="${CONFIG_DIR}/custom_components/victon_gx_hub"
+INTEGRATION_LINK="${CONFIG_DIR}/custom_components/victron_gx_hub"
 if [[ ! -e "${INTEGRATION_LINK}" ]]; then
-    ln -sfn "${ROOT}/custom_components/victon_gx_hub" "${INTEGRATION_LINK}"
+    ln -sfn "${ROOT}/custom_components/victron_gx_hub" "${INTEGRATION_LINK}"
 fi
 
 # Start Home Assistant

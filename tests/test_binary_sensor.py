@@ -17,12 +17,12 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from victron_mqtt import MetricKind, MetricType
 from victron_mqtt._victron_enums import ACSystemMode, GenericOnOff
 
-from custom_components.victon_gx_hub.binary_sensor import (
+from custom_components.victron_gx_hub.binary_sensor import (
     METRIC_TYPE_TO_DEVICE_CLASS,
     VictronBinarySensor,
     async_setup_entry,
 )
-from custom_components.victon_gx_hub.const import (
+from custom_components.victron_gx_hub.const import (
     BINARY_SENSOR_OFF_ID,
     BINARY_SENSOR_ON_ID,
     DOMAIN,

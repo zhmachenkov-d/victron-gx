@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest-cov isort codespell
+
+      - name: Install pre-commit hooks
+        run: pre-commit install
+
+      - name: Ruff format
+        run: ruff format --check .
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: isort
+        run: isort --check-only .
+
+      - name: codespell
+        run: |
+          codespell \
+            --ignore-words-list=additionals,alle,alot,bund,currenty,datas,farenheit,falsy,fo,haa,hass,iif,incomfort,ines,ist,nam,nd,pres,pullrequests,resset,rime,ser,serie,te,technik,ue,unsecure,withing,zar \
+            --skip="./.*,*.csv,*.json,*.ambr" \
+            --quiet-level=2
+
+      - name: Prettier
+        run: pre-commit run prettier --all-files
+
+      - name: pytest with coverage
+        run: |
+          pytest \
+            --cov=custom_components/victron_gx_hub \
+            --cov-report=term \
+            tests/
+
+      - uses: home-assistant/actions/hassfest@master

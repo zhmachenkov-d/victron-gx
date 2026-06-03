@@ -22,8 +22,8 @@ from victron_mqtt import (
     WritableMetric as VictronVenusWritableMetric,
 )
 
-from custom_components.victon_gx_hub.const import DOMAIN
-from custom_components.victon_gx_hub.number import (
+from custom_components.victron_gx_hub.const import DOMAIN
+from custom_components.victron_gx_hub.number import (
     METRIC_TYPE_TO_DEVICE_CLASS,
     VictronNumber,
     async_setup_entry,

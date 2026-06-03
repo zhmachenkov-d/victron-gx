@@ -18,8 +18,8 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from victron_mqtt import GpsLocation, MetricKind, MetricType
 
-from custom_components.victon_gx_hub.const import DOMAIN
-from custom_components.victon_gx_hub.device_tracker import (
+from custom_components.victron_gx_hub.const import DOMAIN
+from custom_components.victron_gx_hub.device_tracker import (
     ATTR_ALTITUDE,
     ATTR_COURSE,
     ATTR_SPEED,
