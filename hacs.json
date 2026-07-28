@@ -1,0 +1,7 @@
+{
+  "name": "Victron GX Hub",
+  "homeassistant": "2026.5.0",
+  "zip_release": true,
+  "filename": "victron_gx_hub.zip",
+  "hide_default_branch": true
+}

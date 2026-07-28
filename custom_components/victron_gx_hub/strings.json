@@ -5,19 +5,23 @@
         "title": "Set up Victron GX",
         "description": "Enter the connection details for your Victron GX device.",
         "data": {
-          "update_interval_seconds": "Update interval",
+          "update_interval": "Update interval",
           "host": "[%key:component::victron_gx_hub::common::config_flow_host%]",
           "password": "[%key:component::victron_gx_hub::common::config_flow_password%]",
           "port": "[%key:component::victron_gx_hub::common::config_flow_port%]",
           "ssl": "[%key:component::victron_gx_hub::common::config_flow_ssl%]",
+          "verify_ssl": "[%key:component::victron_gx_hub::common::config_flow_verify_ssl%]",
+          "ca_cert": "[%key:component::victron_gx_hub::common::config_flow_ca_cert%]",
           "username": "[%key:component::victron_gx_hub::common::config_flow_username%]"
         },
         "data_description": {
-          "update_interval_seconds": "Seconds between hub updates. Leave blank for default.",
+          "update_interval": "Hub metric update cadence. Choose auto or auto_power_none, or enter seconds (1-300). Leave blank for auto.",
           "host": "Hostname or IP address of Victron device, usually mDNS name like 'venus.local'",
           "password": "Password for the Victron device, default is empty. This is not your VRM password.",
           "port": "The MQTT port on the host. Normally it is 1883.",
           "ssl": "Indicates whether to use SSL to connect to the Victron device. Normally it is disabled.",
+          "verify_ssl": "Verify the MQTT broker TLS certificate. Leave off for typical Victron GX self-signed certificates.",
+          "ca_cert": "Optional CA certificate (PEM) used when Verify TLS is enabled. Leave empty to use the system certificate store.",
           "username": "Username for the MQTT server, default is empty. Not needed by Victron devices. This is only needed if you route your MQTT messages through a non-Victron server and it does require a username."
         }
       },
@@ -29,15 +33,19 @@
         "title": "Victron GX authentication",
         "description": "The device at {host} requires authentication.",
         "data": {
-          "update_interval_seconds": "Update interval",
+          "update_interval": "Update interval",
           "password": "[%key:component::victron_gx_hub::common::config_flow_password%]",
           "ssl": "[%key:component::victron_gx_hub::common::config_flow_ssl%]",
+          "verify_ssl": "[%key:component::victron_gx_hub::common::config_flow_verify_ssl%]",
+          "ca_cert": "[%key:component::victron_gx_hub::common::config_flow_ca_cert%]",
           "username": "[%key:component::victron_gx_hub::common::config_flow_username%]"
         },
         "data_description": {
-          "update_interval_seconds": "Seconds between hub updates. Leave blank for default.",
+          "update_interval": "[%key:component::victron_gx_hub::config::step::user::data_description::update_interval%]",
           "password": "[%key:component::victron_gx_hub::config::step::user::data_description::password%]",
           "ssl": "[%key:component::victron_gx_hub::config::step::user::data_description::ssl%]",
+          "verify_ssl": "[%key:component::victron_gx_hub::config::step::user::data_description::verify_ssl%]",
+          "ca_cert": "[%key:component::victron_gx_hub::config::step::user::data_description::ca_cert%]",
           "username": "[%key:component::victron_gx_hub::config::step::user::data_description::username%]"
         }
       },
@@ -45,19 +53,23 @@
         "title": "Reconfigure Victron GX",
         "description": "Update the connection details for your Victron GX device.",
         "data": {
-          "update_interval_seconds": "Update interval",
+          "update_interval": "Update interval",
           "host": "[%key:component::victron_gx_hub::common::config_flow_host%]",
           "password": "[%key:component::victron_gx_hub::common::config_flow_password%]",
           "port": "[%key:component::victron_gx_hub::common::config_flow_port%]",
           "ssl": "[%key:component::victron_gx_hub::common::config_flow_ssl%]",
+          "verify_ssl": "[%key:component::victron_gx_hub::common::config_flow_verify_ssl%]",
+          "ca_cert": "[%key:component::victron_gx_hub::common::config_flow_ca_cert%]",
           "username": "[%key:component::victron_gx_hub::common::config_flow_username%]"
         },
         "data_description": {
-          "update_interval_seconds": "Seconds between hub updates. Leave blank for default.",
+          "update_interval": "[%key:component::victron_gx_hub::config::step::user::data_description::update_interval%]",
           "host": "[%key:component::victron_gx_hub::config::step::user::data_description::host%]",
           "password": "[%key:component::victron_gx_hub::config::step::user::data_description::password%]",
           "port": "[%key:component::victron_gx_hub::config::step::user::data_description::port%]",
           "ssl": "[%key:component::victron_gx_hub::config::step::user::data_description::ssl%]",
+          "verify_ssl": "[%key:component::victron_gx_hub::config::step::user::data_description::verify_ssl%]",
+          "ca_cert": "[%key:component::victron_gx_hub::config::step::user::data_description::ca_cert%]",
           "username": "[%key:component::victron_gx_hub::config::step::user::data_description::username%]"
         }
       },
@@ -67,11 +79,15 @@
         "data": {
           "password": "[%key:component::victron_gx_hub::common::config_flow_password%]",
           "ssl": "[%key:component::victron_gx_hub::common::config_flow_ssl%]",
+          "verify_ssl": "[%key:component::victron_gx_hub::common::config_flow_verify_ssl%]",
+          "ca_cert": "[%key:component::victron_gx_hub::common::config_flow_ca_cert%]",
           "username": "[%key:component::victron_gx_hub::common::config_flow_username%]"
         },
         "data_description": {
           "password": "[%key:component::victron_gx_hub::config::step::user::data_description::password%]",
           "ssl": "[%key:component::victron_gx_hub::config::step::user::data_description::ssl%]",
+          "verify_ssl": "[%key:component::victron_gx_hub::config::step::user::data_description::verify_ssl%]",
+          "ca_cert": "[%key:component::victron_gx_hub::config::step::user::data_description::ca_cert%]",
           "username": "[%key:component::victron_gx_hub::config::step::user::data_description::username%]"
         }
       }
@@ -79,6 +95,7 @@
     "error": {
       "invalid_auth": "Invalid authentication credentials.",
       "cannot_connect": "Unable to connect to the Victron GX device.",
+      "invalid_update_interval": "Update interval must be auto, auto_power_none, or an integer from 1 to 300.",
       "unknown": "Unexpected error occurred."
     },
     "abort": {
@@ -113,6 +130,8 @@
     "config_flow_password": "Password",
     "config_flow_port": "Port",
     "config_flow_ssl": "Uses an SSL certificate",
+    "config_flow_verify_ssl": "Verify TLS certificate",
+    "config_flow_ca_cert": "CA certificate",
     "config_flow_username": "Username",
     "consumption": "Consumption",
     "consumption_on_phase": "Consumption on {phase}",
@@ -2103,6 +2122,14 @@
     },
     "cannot_connect": {
       "message": "Cannot connect to the GX device at {host}."
+    }
+  },
+  "selector": {
+    "update_interval": {
+      "options": {
+        "auto": "Automatic",
+        "auto_power_none": "Automatic (power on change)"
+      }
     }
   }
 }

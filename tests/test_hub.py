@@ -18,6 +18,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from victron_mqtt import (
+    UPDATE_FREQUENCY_AUTO,
     AuthenticationError,
     CannotConnectError,
     GenericOnOff,
@@ -30,7 +31,7 @@ from custom_components.victron_gx_hub import hub as hub_module
 from custom_components.victron_gx_hub.const import (
     CONF_INSTALLATION_ID,
     CONF_SERIAL,
-    CONF_UPDATE_INTERVAL_SECONDS,
+    CONF_UPDATE_INTERVAL,
     DOMAIN,
 )
 from custom_components.victron_gx_hub.hub import Hub
@@ -46,6 +47,8 @@ SERIAL = "serial-1"
 MODEL = "Cerbo GX"
 USERNAME = "user"
 PASSWORD = "secret"
+SSL_PORT = 8883
+UPDATE_INTERVAL = 30
 
 
 class FakeVictronVenusHub:
@@ -120,7 +123,7 @@ def config_entry(hass: HomeAssistant) -> MockConfigEntry:
         domain=DOMAIN,
         data={
             CONF_HOST: HOST,
-            CONF_PORT: 8883,
+            CONF_PORT: SSL_PORT,
             CONF_USERNAME: USERNAME,
             CONF_PASSWORD: PASSWORD,
             CONF_SSL: True,
@@ -128,7 +131,7 @@ def config_entry(hass: HomeAssistant) -> MockConfigEntry:
             CONF_MODEL: MODEL,
             CONF_SERIAL: SERIAL,
         },
-        options={CONF_UPDATE_INTERVAL_SECONDS: 30},
+        options={CONF_UPDATE_INTERVAL: UPDATE_INTERVAL},
     )
     entry.add_to_hass(hass)
     return entry
@@ -146,18 +149,43 @@ def test_hub_initializes_victron_client(
     assert hub.hass is hass
     assert hub.host == HOST
     assert victron_hub.on_new_metric is not None
-    assert victron_hub.kwargs == {
-        "host": HOST,
-        "port": 8883,
-        "username": USERNAME,
-        "password": PASSWORD,
-        "use_ssl": True,
-        "installation_id": INSTALLATION_ID,
-        "model_name": MODEL,
-        "serial": SERIAL,
-        "operation_mode": OperationMode.FULL,
-        "update_frequency_seconds": 30,
-    }
+    assert victron_hub.kwargs["host"] == HOST
+    assert victron_hub.kwargs["port"] == SSL_PORT
+    assert victron_hub.kwargs["username"] == USERNAME
+    assert victron_hub.kwargs["password"] == PASSWORD
+    assert victron_hub.kwargs["use_ssl"] is True
+    assert victron_hub.kwargs["ssl_context"] is not None
+    assert victron_hub.kwargs["ssl_context"].verify_mode.name == "CERT_NONE"
+    assert victron_hub.kwargs["installation_id"] == INSTALLATION_ID
+    assert victron_hub.kwargs["model_name"] == MODEL
+    assert victron_hub.kwargs["serial"] == SERIAL
+    assert victron_hub.kwargs["operation_mode"] == OperationMode.FULL
+    assert victron_hub.kwargs["update_frequency_seconds"] == UPDATE_INTERVAL
+
+
+def test_hub_defaults_update_frequency_to_auto(
+    hass: HomeAssistant,
+    fake_victron_hub: type[FakeVictronVenusHub],
+) -> None:
+    """Default the wrapped hub update frequency to auto when unset."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_HOST: HOST,
+            CONF_PORT: 1883,
+            CONF_SSL: False,
+            CONF_INSTALLATION_ID: INSTALLATION_ID,
+        },
+    )
+    entry.add_to_hass(hass)
+
+    Hub(hass, entry)
+
+    assert (
+        fake_victron_hub.instances[0].kwargs["update_frequency_seconds"]
+        == UPDATE_FREQUENCY_AUTO
+    )
+    assert fake_victron_hub.instances[0].kwargs["ssl_context"] is None
 
 
 async def test_start_connects_wrapped_hub(

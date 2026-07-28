@@ -18,6 +18,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.redact import async_redact_data
 from victron_mqtt import (
+    UPDATE_FREQUENCY_AUTO,
     AuthenticationError,
     CannotConnectError,
     Device as VictronVenusDevice,
@@ -30,21 +31,36 @@ from victron_mqtt import (
 )
 
 from .const import (
+    CONF_CA_CERT,
     CONF_INSTALLATION_ID,
     CONF_SERIAL,
+    CONF_UPDATE_INTERVAL,
     CONF_UPDATE_INTERVAL_SECONDS,
     DOMAIN,
 )
+from .ssl_util import build_ssl_context
 
 _LOGGER = logging.getLogger(__name__)
 
-TO_REDACT = {CONF_USERNAME, CONF_PASSWORD}
+TO_REDACT = {CONF_USERNAME, CONF_PASSWORD, CONF_CA_CERT}
 
 type VictronGxConfigEntry = ConfigEntry[Hub]
 
 type NewMetricCallback = Callable[
     [VictronVenusDevice, VictronVenusMetric, DeviceInfo, str], None
 ]
+
+
+def resolve_update_frequency(config: dict[str, Any]) -> int | str:
+    """Resolve the hub update frequency from entry config.
+
+    Prefers ``update_interval``, falls back to legacy ``update_interval_seconds``,
+    and defaults to auto when unset.
+    """
+    value = config.get(CONF_UPDATE_INTERVAL)
+    if value is None:
+        value = config.get(CONF_UPDATE_INTERVAL_SECONDS)
+    return value or UPDATE_FREQUENCY_AUTO
 
 
 class Hub:
@@ -66,18 +82,20 @@ class Hub:
         config = {**entry.data, **entry.options}
         self.hass = hass
         self.host = config[CONF_HOST]
+        use_ssl = config.get(CONF_SSL, False)
 
         self._hub = VictronVenusHub(
             host=self.host,
             port=config.get(CONF_PORT, 1883),
             username=config.get(CONF_USERNAME) or None,
             password=config.get(CONF_PASSWORD) or None,
-            use_ssl=config.get(CONF_SSL, False),
+            use_ssl=use_ssl,
+            ssl_context=build_ssl_context(config),
             installation_id=config.get(CONF_INSTALLATION_ID) or None,
             model_name=config.get(CONF_MODEL) or None,
             serial=config.get(CONF_SERIAL) or None,
             operation_mode=OperationMode.FULL,
-            update_frequency_seconds=config.get(CONF_UPDATE_INTERVAL_SECONDS),
+            update_frequency_seconds=resolve_update_frequency(config),
         )
         self._hub.on_new_metric = self._on_new_metric
         self.new_metric_callbacks: dict[MetricKind, NewMetricCallback] = {}

@@ -14,25 +14,36 @@ from homeassistant.const import (
     CONF_PORT,
     CONF_SSL,
     CONF_USERNAME,
+    CONF_VERIFY_SSL,
 )
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
-from victron_mqtt import AuthenticationError, CannotConnectError
+from victron_mqtt import (
+    UPDATE_FREQUENCY_AUTO,
+    UPDATE_FREQUENCY_AUTO_POWER_NONE,
+    AuthenticationError,
+    CannotConnectError,
+)
 
 from custom_components.victron_gx_hub import config_flow
 from custom_components.victron_gx_hub.config_flow import (
     DEFAULT_PORT,
     ENTRY_TITLE_FORMAT,
+    InvalidUpdateIntervalError,
     _apply_credential_updates,
     _normalize_update_interval,
     validate_input,
 )
 from custom_components.victron_gx_hub.const import (
+    CONF_CA_CERT,
     CONF_INSTALLATION_ID,
     CONF_SERIAL,
+    CONF_UPDATE_INTERVAL,
     CONF_UPDATE_INTERVAL_SECONDS,
     DOMAIN,
 )
+from custom_components.victron_gx_hub.hub import resolve_update_frequency
+from tests.test_ssl_util import _self_signed_ca_pem
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -45,6 +56,10 @@ USERNAME = "user"
 PASSWORD = "secret"
 UPDATED_PASSWORD = "new-secret"
 USER_UPDATE_INTERVAL = 20
+SSDP_AUTH_UPDATE_INTERVAL = 45
+VALIDATE_UPDATE_INTERVAL = 15
+LEGACY_UPDATE_INTERVAL = 20
+CA_PEM = "-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----\n"
 
 
 class FakeVictronVenusHub:
@@ -102,12 +117,43 @@ def _ssdp_info(**upnp_overrides: str) -> SimpleNamespace:
 
 
 def test_normalize_update_interval() -> None:
-    """Normalize optional update interval fields."""
+    """Normalize optional update interval fields and migrate the legacy key."""
     assert _normalize_update_interval({CONF_HOST: HOST}) == {CONF_HOST: HOST}
-    assert _normalize_update_interval({CONF_UPDATE_INTERVAL_SECONDS: ""}) == {}
-    assert _normalize_update_interval({CONF_UPDATE_INTERVAL_SECONDS: "30"}) == {
-        CONF_UPDATE_INTERVAL_SECONDS: 30
+    assert _normalize_update_interval({CONF_UPDATE_INTERVAL: ""}) == {}
+    assert _normalize_update_interval({CONF_UPDATE_INTERVAL: "30"}) == {
+        CONF_UPDATE_INTERVAL: 30
     }
+    assert _normalize_update_interval({CONF_UPDATE_INTERVAL: 1}) == {
+        CONF_UPDATE_INTERVAL: 1
+    }
+    assert _normalize_update_interval({CONF_UPDATE_INTERVAL: 300}) == {
+        CONF_UPDATE_INTERVAL: 300
+    }
+    assert _normalize_update_interval(
+        {CONF_UPDATE_INTERVAL: UPDATE_FREQUENCY_AUTO}
+    ) == {CONF_UPDATE_INTERVAL: UPDATE_FREQUENCY_AUTO}
+    assert _normalize_update_interval(
+        {CONF_UPDATE_INTERVAL: UPDATE_FREQUENCY_AUTO_POWER_NONE}
+    ) == {CONF_UPDATE_INTERVAL: UPDATE_FREQUENCY_AUTO_POWER_NONE}
+    assert _normalize_update_interval({CONF_UPDATE_INTERVAL_SECONDS: 45}) == {
+        CONF_UPDATE_INTERVAL: 45
+    }
+    for invalid in (0, 301, "abc"):
+        with pytest.raises(InvalidUpdateIntervalError):
+            _normalize_update_interval({CONF_UPDATE_INTERVAL: invalid})
+
+
+def test_resolve_update_frequency_defaults_to_auto() -> None:
+    """Unset update interval resolves to the library auto profile."""
+    assert resolve_update_frequency({}) == UPDATE_FREQUENCY_AUTO
+    assert (
+        resolve_update_frequency({CONF_UPDATE_INTERVAL: VALIDATE_UPDATE_INTERVAL})
+        == VALIDATE_UPDATE_INTERVAL
+    )
+    assert (
+        resolve_update_frequency({CONF_UPDATE_INTERVAL_SECONDS: LEGACY_UPDATE_INTERVAL})
+        == LEGACY_UPDATE_INTERVAL
+    )
 
 
 def test_apply_credential_updates_preserves_blank_password() -> None:
@@ -117,12 +163,14 @@ def test_apply_credential_updates_preserves_blank_password() -> None:
         CONF_PORT: DEFAULT_PORT,
         CONF_USERNAME: USERNAME,
         CONF_PASSWORD: PASSWORD,
-        CONF_UPDATE_INTERVAL_SECONDS: 10,
+        CONF_UPDATE_INTERVAL: 10,
+        CONF_CA_CERT: CA_PEM,
     }
     updates = {
         CONF_USERNAME: "",
         CONF_PASSWORD: "",
-        CONF_UPDATE_INTERVAL_SECONDS: "",
+        CONF_UPDATE_INTERVAL: "",
+        CONF_CA_CERT: "upload-id",
     }
 
     assert _apply_credential_updates(existing, updates) == {
@@ -130,6 +178,8 @@ def test_apply_credential_updates_preserves_blank_password() -> None:
         CONF_PORT: DEFAULT_PORT,
         CONF_USERNAME: None,
         CONF_PASSWORD: PASSWORD,
+        CONF_UPDATE_INTERVAL: "",
+        CONF_CA_CERT: CA_PEM,
     }
 
 
@@ -142,26 +192,48 @@ async def test_validate_input_connects_and_disconnects(
             CONF_INSTALLATION_ID: INSTALLATION_ID,
             CONF_MODEL: MODEL,
             CONF_SERIAL: SERIAL,
-            CONF_UPDATE_INTERVAL_SECONDS: 15,
+            CONF_UPDATE_INTERVAL: VALIDATE_UPDATE_INTERVAL,
         }
     )
 
     assert await validate_input(data) == INSTALLATION_ID
 
     hub = fake_victron_hub.instances[0]
-    assert hub.kwargs == {
-        "host": HOST,
-        "port": DEFAULT_PORT,
-        "username": USERNAME,
-        "password": PASSWORD,
-        "use_ssl": False,
-        "installation_id": INSTALLATION_ID,
-        "model_name": MODEL,
-        "serial": SERIAL,
-        "update_frequency_seconds": 15,
-    }
+    assert hub.kwargs["host"] == HOST
+    assert hub.kwargs["port"] == DEFAULT_PORT
+    assert hub.kwargs["username"] == USERNAME
+    assert hub.kwargs["password"] == PASSWORD
+    assert hub.kwargs["use_ssl"] is False
+    assert hub.kwargs["ssl_context"] is None
+    assert hub.kwargs["installation_id"] == INSTALLATION_ID
+    assert hub.kwargs["model_name"] == MODEL
+    assert hub.kwargs["serial"] == SERIAL
+    assert hub.kwargs["update_frequency_seconds"] == VALIDATE_UPDATE_INTERVAL
     hub.connect.assert_awaited_once()
     hub.disconnect.assert_awaited_once()
+
+
+async def test_validate_input_defaults_update_frequency_to_auto(
+    fake_victron_hub: type[FakeVictronVenusHub],
+) -> None:
+    """Pass auto update frequency when the interval is unset."""
+    await validate_input(_user_input())
+
+    assert (
+        fake_victron_hub.instances[0].kwargs["update_frequency_seconds"]
+        == UPDATE_FREQUENCY_AUTO
+    )
+
+
+async def test_validate_input_builds_unverified_ssl_context(
+    fake_victron_hub: type[FakeVictronVenusHub],
+) -> None:
+    """Pass an unverified SSL context when SSL is enabled without verify."""
+    await validate_input(_user_input(**{CONF_SSL: True}))
+
+    ssl_context = fake_victron_hub.instances[0].kwargs["ssl_context"]
+    assert ssl_context is not None
+    assert ssl_context.verify_mode.name == "CERT_NONE"
 
 
 async def test_validate_input_disconnects_when_connect_fails(
@@ -203,7 +275,7 @@ async def test_user_flow_creates_entry(
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
         context={"source": SOURCE_USER},
-        data=_user_input(**{CONF_UPDATE_INTERVAL_SECONDS: str(USER_UPDATE_INTERVAL)}),
+        data=_user_input(**{CONF_UPDATE_INTERVAL: str(USER_UPDATE_INTERVAL)}),
     )
 
     assert result["type"] == "create_entry"
@@ -213,7 +285,7 @@ async def test_user_flow_creates_entry(
         port=DEFAULT_PORT,
     )
     assert result["data"][CONF_INSTALLATION_ID] == INSTALLATION_ID
-    assert result["data"][CONF_UPDATE_INTERVAL_SECONDS] == USER_UPDATE_INTERVAL
+    assert result["data"][CONF_UPDATE_INTERVAL] == USER_UPDATE_INTERVAL
     assert fake_victron_hub.instances[0].connect.await_count == 1
 
 
@@ -243,6 +315,64 @@ async def test_user_flow_shows_errors(
     assert result["type"] == "form"
     assert result["step_id"] == "user"
     assert result["errors"] == {"base": error}
+
+
+async def test_user_flow_retains_ca_cert_across_validation_retry(
+    hass: HomeAssistant,
+    fake_victron_hub: type[FakeVictronVenusHub],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reuse an uploaded CA PEM when validation fails and the form is retried."""
+    ca_pem = _self_signed_ca_pem()
+    monkeypatch.setattr(
+        config_flow,
+        "_async_read_uploaded_ca",
+        AsyncMock(return_value=ca_pem),
+    )
+    fake_victron_hub.connect_side_effect = AuthenticationError
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_USER},
+        data=_user_input(
+            **{
+                CONF_SSL: True,
+                CONF_VERIFY_SSL: True,
+                CONF_CA_CERT: "upload-id",
+            }
+        ),
+    )
+
+    assert result["type"] == "form"
+    assert result["errors"] == {"base": "invalid_auth"}
+
+    fake_victron_hub.connect_side_effect = None
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input=_user_input(**{CONF_SSL: True, CONF_VERIFY_SSL: True}),
+    )
+
+    assert result["type"] == "create_entry"
+    assert result["data"][CONF_CA_CERT] == ca_pem
+
+
+@pytest.mark.parametrize("invalid_interval", ["999", "nope"])
+async def test_user_flow_rejects_invalid_update_interval(
+    hass: HomeAssistant,
+    fake_victron_hub: type[FakeVictronVenusHub],
+    invalid_interval: str,
+) -> None:
+    """Show a field error when the custom update interval is invalid."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_USER},
+        data=_user_input(**{CONF_UPDATE_INTERVAL: invalid_interval}),
+    )
+
+    assert result["type"] == "form"
+    assert result["step_id"] == "user"
+    assert result["errors"] == {CONF_UPDATE_INTERVAL: "invalid_update_interval"}
+    assert not fake_victron_hub.instances
 
 
 async def test_ssdp_flow_creates_entry_after_confirmation(
@@ -307,7 +437,7 @@ async def test_ssdp_auth_creates_entry(
             CONF_USERNAME: USERNAME,
             CONF_PASSWORD: PASSWORD,
             CONF_SSL: True,
-            CONF_UPDATE_INTERVAL_SECONDS: "45",
+            CONF_UPDATE_INTERVAL: str(SSDP_AUTH_UPDATE_INTERVAL),
         },
     )
 
@@ -315,6 +445,7 @@ async def test_ssdp_auth_creates_entry(
     assert result["data"][CONF_USERNAME] == USERNAME
     assert result["data"][CONF_PASSWORD] == PASSWORD
     assert result["data"][CONF_SSL] is True
+    assert result["data"][CONF_UPDATE_INTERVAL] == SSDP_AUTH_UPDATE_INTERVAL
 
 
 @pytest.mark.parametrize(
@@ -367,6 +498,7 @@ async def test_reauth_updates_credentials(
             CONF_USERNAME: USERNAME,
             CONF_PASSWORD: UPDATED_PASSWORD,
             CONF_SSL: True,
+            CONF_VERIFY_SSL: False,
         },
     )
 
@@ -374,3 +506,5 @@ async def test_reauth_updates_credentials(
     assert result["reason"] == "reauth_successful"
     assert entry.data[CONF_PASSWORD] == UPDATED_PASSWORD
     assert entry.data[CONF_SSL] is True
+    assert entry.data[CONF_VERIFY_SSL] is False
+    assert CONF_CA_CERT not in entry.data

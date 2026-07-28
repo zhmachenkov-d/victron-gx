@@ -6,6 +6,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
+from homeassistant.components.file_upload import process_uploaded_file
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import (
     CONF_HOST,
@@ -14,22 +15,34 @@ from homeassistant.const import (
     CONF_PORT,
     CONF_SSL,
     CONF_USERNAME,
+    CONF_VERIFY_SSL,
 )
 from homeassistant.helpers import selector
 from homeassistant.helpers.redact import async_redact_data
-from victron_mqtt import AuthenticationError, CannotConnectError, Hub as VictronVenusHub
+from victron_mqtt import (
+    UPDATE_FREQUENCY_AUTO,
+    UPDATE_FREQUENCY_AUTO_POWER_NONE,
+    AuthenticationError,
+    CannotConnectError,
+    Hub as VictronVenusHub,
+)
 import voluptuous as vol
 
 from .const import (
+    CONF_CA_CERT,
     CONF_INSTALLATION_ID,
     CONF_SERIAL,
+    CONF_UPDATE_INTERVAL,
     CONF_UPDATE_INTERVAL_SECONDS,
     DOMAIN,
 )
+from .hub import resolve_update_frequency
+from .ssl_util import build_ssl_context
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from homeassistant.core import HomeAssistant
     from homeassistant.helpers.service_info.ssdp import SsdpServiceInfo
 
 DEFAULT_HOST = "venus.local"
@@ -37,18 +50,36 @@ DEFAULT_PORT = 1883
 
 _LOGGER = logging.getLogger(__name__)
 
-TO_REDACT = {CONF_USERNAME, CONF_PASSWORD}
+TO_REDACT = {CONF_USERNAME, CONF_PASSWORD, CONF_CA_CERT}
 
 ENTRY_TITLE_FORMAT = "Victron OS {installation_id} ({host}:{port})"
 
-UPDATE_INTERVAL_SELECTOR = selector.NumberSelector(
-    selector.NumberSelectorConfig(
-        min=1,
-        max=300,
-        step=1,
-        mode=selector.NumberSelectorMode.BOX,
-        unit_of_measurement="s",
+UPDATE_INTERVAL_PROFILES = frozenset(
+    {UPDATE_FREQUENCY_AUTO, UPDATE_FREQUENCY_AUTO_POWER_NONE}
+)
+
+MIN_UPDATE_INTERVAL_SECONDS = 1
+MAX_UPDATE_INTERVAL_SECONDS = 300
+
+UPDATE_INTERVAL_SELECTOR = selector.SelectSelector(
+    selector.SelectSelectorConfig(
+        options=[
+            UPDATE_FREQUENCY_AUTO,
+            UPDATE_FREQUENCY_AUTO_POWER_NONE,
+        ],
+        custom_value=True,
+        mode=selector.SelectSelectorMode.DROPDOWN,
+        translation_key="update_interval",
     )
+)
+
+
+class InvalidUpdateIntervalError(ValueError):
+    """Raised when the update interval is not a supported profile or range."""
+
+
+CA_CERT_SELECTOR = selector.FileSelector(
+    selector.FileSelectorConfig(accept=".pem,.crt,.cer")
 )
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
@@ -60,7 +91,9 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
             selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
         ),
         vol.Required(CONF_SSL, default=False): selector.BooleanSelector(),
-        vol.Optional(CONF_UPDATE_INTERVAL_SECONDS): UPDATE_INTERVAL_SELECTOR,
+        vol.Optional(CONF_VERIFY_SSL, default=False): selector.BooleanSelector(),
+        vol.Optional(CONF_CA_CERT): CA_CERT_SELECTOR,
+        vol.Optional(CONF_UPDATE_INTERVAL): UPDATE_INTERVAL_SELECTOR,
     }
 )
 
@@ -71,7 +104,9 @@ STEP_SSDP_AUTH_DATA_SCHEMA = vol.Schema(
             selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
         ),
         vol.Optional(CONF_SSL, default=False): selector.BooleanSelector(),
-        vol.Optional(CONF_UPDATE_INTERVAL_SECONDS): UPDATE_INTERVAL_SELECTOR,
+        vol.Optional(CONF_VERIFY_SSL, default=False): selector.BooleanSelector(),
+        vol.Optional(CONF_CA_CERT): CA_CERT_SELECTOR,
+        vol.Optional(CONF_UPDATE_INTERVAL): UPDATE_INTERVAL_SELECTOR,
     }
 )
 
@@ -82,6 +117,8 @@ STEP_REAUTH_DATA_SCHEMA = vol.Schema(
             selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
         ),
         vol.Optional(CONF_SSL): selector.BooleanSelector(),
+        vol.Optional(CONF_VERIFY_SSL): selector.BooleanSelector(),
+        vol.Optional(CONF_CA_CERT): CA_CERT_SELECTOR,
     }
 )
 
@@ -95,17 +132,19 @@ async def validate_input(data: dict[str, Any]) -> str:
     """
     _LOGGER.debug("Validating input: %s", async_redact_data(data, TO_REDACT))
     hub: VictronVenusHub | None = None
+    use_ssl = data.get(CONF_SSL, False)
     try:
         hub = VictronVenusHub(
             host=data[CONF_HOST],
             port=int(data[CONF_PORT]),
             username=data.get(CONF_USERNAME) or None,
             password=data.get(CONF_PASSWORD) or None,
-            use_ssl=data.get(CONF_SSL, False),
+            use_ssl=use_ssl,
+            ssl_context=build_ssl_context(data),
             installation_id=data.get(CONF_INSTALLATION_ID) or None,
             model_name=data.get(CONF_MODEL) or None,
             serial=data.get(CONF_SERIAL) or None,
-            update_frequency_seconds=data.get(CONF_UPDATE_INTERVAL_SECONDS),
+            update_frequency_seconds=resolve_update_frequency(data),
         )
 
         await hub.connect()
@@ -126,7 +165,11 @@ def _apply_credential_updates(
     user_input: dict[str, Any],
 ) -> dict[str, Any]:
     """Merge credential fields, preserving stored password when left blank."""
-    data = {**existing_data, **user_input}
+    # Keep CA handling out of the merge; caller finalizes TLS separately.
+    merged_input = {
+        key: value for key, value in user_input.items() if key != CONF_CA_CERT
+    }
+    data = {**existing_data, **merged_input}
     if CONF_USERNAME in user_input:
         data[CONF_USERNAME] = user_input[CONF_USERNAME] or None
     if CONF_PASSWORD in user_input:
@@ -134,21 +177,87 @@ def _apply_credential_updates(
             data[CONF_PASSWORD] = user_input[CONF_PASSWORD]
         else:
             data[CONF_PASSWORD] = existing_data.get(CONF_PASSWORD)
-    return _normalize_update_interval(data)
+    return data
 
 
 def _normalize_update_interval(data: dict[str, Any]) -> dict[str, Any]:
-    """Normalize optional update interval, omitting blank values."""
+    """Normalize update interval and migrate the legacy seconds key."""
     normalized = dict(data)
-    if CONF_UPDATE_INTERVAL_SECONDS not in normalized:
+
+    if (
+        CONF_UPDATE_INTERVAL_SECONDS in normalized
+        and CONF_UPDATE_INTERVAL not in normalized
+    ):
+        normalized[CONF_UPDATE_INTERVAL] = normalized.pop(CONF_UPDATE_INTERVAL_SECONDS)
+    else:
+        normalized.pop(CONF_UPDATE_INTERVAL_SECONDS, None)
+
+    if CONF_UPDATE_INTERVAL not in normalized:
         return normalized
 
-    value = normalized[CONF_UPDATE_INTERVAL_SECONDS]
+    value = normalized[CONF_UPDATE_INTERVAL]
     if value in (None, ""):
-        normalized.pop(CONF_UPDATE_INTERVAL_SECONDS, None)
+        normalized.pop(CONF_UPDATE_INTERVAL, None)
+    elif value in UPDATE_INTERVAL_PROFILES:
+        normalized[CONF_UPDATE_INTERVAL] = value
     else:
-        normalized[CONF_UPDATE_INTERVAL_SECONDS] = int(value)
+        try:
+            interval = int(value)
+        except (TypeError, ValueError) as err:
+            raise InvalidUpdateIntervalError from err
+        if not (MIN_UPDATE_INTERVAL_SECONDS <= interval <= MAX_UPDATE_INTERVAL_SECONDS):
+            raise InvalidUpdateIntervalError
+        normalized[CONF_UPDATE_INTERVAL] = interval
     return normalized
+
+
+async def _async_read_uploaded_ca(hass: HomeAssistant, file_id: str) -> str:
+    """Read an uploaded CA certificate file as a PEM string."""
+
+    def _read() -> str:
+        with process_uploaded_file(hass, file_id) as file_path:
+            return file_path.read_text(encoding="utf-8")
+
+    return await hass.async_add_executor_job(_read)
+
+
+async def _async_finalize_config_data(
+    hass: HomeAssistant,
+    data: dict[str, Any],
+    *,
+    ca_upload_id: str | None = None,
+    existing_data: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Normalize interval/TLS fields for storage in a config entry."""
+    prepared = _normalize_update_interval(data)
+    existing = existing_data or {}
+
+    use_ssl = prepared.get(CONF_SSL, False)
+    if not use_ssl:
+        prepared.pop(CONF_VERIFY_SSL, None)
+        prepared.pop(CONF_CA_CERT, None)
+        return prepared
+
+    verify_ssl = bool(prepared.get(CONF_VERIFY_SSL, False))
+    prepared[CONF_VERIFY_SSL] = verify_ssl
+    if not verify_ssl:
+        prepared.pop(CONF_CA_CERT, None)
+        return prepared
+
+    if ca_upload_id:
+        prepared[CONF_CA_CERT] = await _async_read_uploaded_ca(hass, ca_upload_id)
+    elif existing.get(CONF_CA_CERT):
+        prepared[CONF_CA_CERT] = existing[CONF_CA_CERT]
+    else:
+        prepared.pop(CONF_CA_CERT, None)
+    return prepared
+
+
+def _suggested_update_interval(entry_data: Mapping[str, Any]) -> Any:
+    """Return the stored update interval, including legacy key migration."""
+    if CONF_UPDATE_INTERVAL in entry_data:
+        return entry_data[CONF_UPDATE_INTERVAL]
+    return entry_data.get(CONF_UPDATE_INTERVAL_SECONDS)
 
 
 class VictronGxConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -163,6 +272,16 @@ class VictronGxConfigFlow(ConfigFlow, domain=DOMAIN):
         self.installation_id: str | None = None
         self.friendly_name: str | None = None
         self.model_name: str | None = None
+        self._pending_ca_cert: str | None = None
+
+    def _ca_existing_data(
+        self, entry_data: Mapping[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Merge entry data with a CA PEM retained across validation retries."""
+        existing = dict(entry_data or {})
+        if self._pending_ca_cert is not None:
+            existing[CONF_CA_CERT] = self._pending_ca_cert
+        return existing
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -170,21 +289,31 @@ class VictronGxConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle the initial step."""
         errors: dict[str, str] = {}
         if user_input is not None:
+            ca_upload_id = user_input.pop(CONF_CA_CERT, None)
             _LOGGER.debug(
                 "User input received: %s",
                 async_redact_data(user_input, TO_REDACT),
             )
-            data = {
-                **user_input,
-                CONF_SERIAL: self.serial,
-                CONF_MODEL: self.model_name,
-            }
-
             try:
+                data = await _async_finalize_config_data(
+                    self.hass,
+                    {
+                        **user_input,
+                        CONF_SERIAL: self.serial,
+                        CONF_MODEL: self.model_name,
+                    },
+                    ca_upload_id=ca_upload_id,
+                    existing_data=self._ca_existing_data(),
+                )
+                if ca_upload_id and CONF_CA_CERT in data:
+                    self._pending_ca_cert = data[CONF_CA_CERT]
+
                 installation_id = await validate_input(data)
                 _LOGGER.debug(
                     "Successfully connected to Victron device: %s", installation_id
                 )
+            except InvalidUpdateIntervalError:
+                errors[CONF_UPDATE_INTERVAL] = "invalid_update_interval"
             except AuthenticationError:
                 _LOGGER.debug(
                     "Authentication failed during initial setup", exc_info=True
@@ -207,9 +336,7 @@ class VictronGxConfigFlow(ConfigFlow, domain=DOMAIN):
                     host=data[CONF_HOST],
                     port=data[CONF_PORT],
                 )
-                return self.async_create_entry(
-                    title=title, data=_normalize_update_interval(data)
-                )
+                return self.async_create_entry(title=title, data=data)
 
         _LOGGER.debug("Showing form with errors: %s", errors)
         return self.async_show_form(
@@ -307,24 +434,36 @@ class VictronGxConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
+            ca_upload_id = user_input.pop(CONF_CA_CERT, None)
             _LOGGER.debug(
                 "SSDP auth user input received: %s",
                 async_redact_data(user_input, TO_REDACT),
             )
-            data: dict[str, Any] = {
-                CONF_HOST: self.hostname,
-                CONF_PORT: DEFAULT_PORT,
-                CONF_SERIAL: self.serial,
-                CONF_INSTALLATION_ID: self.installation_id,
-                CONF_MODEL: self.model_name,
-                CONF_USERNAME: user_input.get(CONF_USERNAME) or None,
-                CONF_PASSWORD: user_input.get(CONF_PASSWORD) or None,
-                CONF_SSL: user_input.get(CONF_SSL, False),
-            }
-
             try:
+                data = await _async_finalize_config_data(
+                    self.hass,
+                    {
+                        CONF_HOST: self.hostname,
+                        CONF_PORT: DEFAULT_PORT,
+                        CONF_SERIAL: self.serial,
+                        CONF_INSTALLATION_ID: self.installation_id,
+                        CONF_MODEL: self.model_name,
+                        CONF_USERNAME: user_input.get(CONF_USERNAME) or None,
+                        CONF_PASSWORD: user_input.get(CONF_PASSWORD) or None,
+                        CONF_SSL: user_input.get(CONF_SSL, False),
+                        CONF_VERIFY_SSL: user_input.get(CONF_VERIFY_SSL, False),
+                        CONF_UPDATE_INTERVAL: user_input.get(CONF_UPDATE_INTERVAL),
+                    },
+                    ca_upload_id=ca_upload_id,
+                    existing_data=self._ca_existing_data(),
+                )
+                if ca_upload_id and CONF_CA_CERT in data:
+                    self._pending_ca_cert = data[CONF_CA_CERT]
+
                 await validate_input(data)
                 _LOGGER.debug("SSDP authentication successful")
+            except InvalidUpdateIntervalError:
+                errors[CONF_UPDATE_INTERVAL] = "invalid_update_interval"
             except AuthenticationError:
                 _LOGGER.debug("Authentication failed during SSDP setup", exc_info=True)
                 errors["base"] = "invalid_auth"
@@ -341,7 +480,7 @@ class VictronGxConfigFlow(ConfigFlow, domain=DOMAIN):
                         host=self.hostname,
                         port=DEFAULT_PORT,
                     ),
-                    data=_normalize_update_interval(data),
+                    data=data,
                 )
 
         return self.async_show_form(
@@ -361,9 +500,21 @@ class VictronGxConfigFlow(ConfigFlow, domain=DOMAIN):
         reconfigure_entry = self._get_reconfigure_entry()
 
         if user_input is not None:
-            data = _apply_credential_updates(reconfigure_entry.data, user_input)
+            ca_upload_id = user_input.get(CONF_CA_CERT)
+            data = _apply_credential_updates(dict(reconfigure_entry.data), user_input)
             try:
+                data = await _async_finalize_config_data(
+                    self.hass,
+                    data,
+                    ca_upload_id=ca_upload_id,
+                    existing_data=self._ca_existing_data(reconfigure_entry.data),
+                )
+                if ca_upload_id and CONF_CA_CERT in data:
+                    self._pending_ca_cert = data[CONF_CA_CERT]
+
                 installation_id = await validate_input(data)
+            except InvalidUpdateIntervalError:
+                errors[CONF_UPDATE_INTERVAL] = "invalid_update_interval"
             except AuthenticationError:
                 errors["base"] = "invalid_auth"
             except CannotConnectError:
@@ -381,7 +532,7 @@ class VictronGxConfigFlow(ConfigFlow, domain=DOMAIN):
                         host=user_input[CONF_HOST],
                         port=user_input[CONF_PORT],
                     ),
-                    data_updates=data,
+                    data=data,
                 )
 
         suggested_values = {
@@ -389,12 +540,13 @@ class VictronGxConfigFlow(ConfigFlow, domain=DOMAIN):
             CONF_PORT: reconfigure_entry.data[CONF_PORT],
             CONF_USERNAME: reconfigure_entry.data.get(CONF_USERNAME),
             CONF_SSL: reconfigure_entry.data.get(CONF_SSL, False),
-            CONF_UPDATE_INTERVAL_SECONDS: reconfigure_entry.data.get(
-                CONF_UPDATE_INTERVAL_SECONDS
-            ),
+            CONF_VERIFY_SSL: reconfigure_entry.data.get(CONF_VERIFY_SSL, False),
+            CONF_UPDATE_INTERVAL: _suggested_update_interval(reconfigure_entry.data),
         }
         if user_input is not None:
-            suggested_values.update(user_input)
+            suggested_values.update(
+                {key: value for key, value in user_input.items() if key != CONF_CA_CERT}
+            )
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=self.add_suggested_values_to_schema(
@@ -415,18 +567,32 @@ class VictronGxConfigFlow(ConfigFlow, domain=DOMAIN):
         reauth_entry = self._get_reauth_entry()
 
         if user_input is not None:
+            ca_upload_id = user_input.get(CONF_CA_CERT)
             updates: dict[str, Any] = {
                 CONF_USERNAME: user_input.get(CONF_USERNAME) or None,
                 CONF_SSL: user_input.get(
                     CONF_SSL, reauth_entry.data.get(CONF_SSL, False)
                 ),
+                CONF_VERIFY_SSL: user_input.get(
+                    CONF_VERIFY_SSL, reauth_entry.data.get(CONF_VERIFY_SSL, False)
+                ),
             }
             if user_input.get(CONF_PASSWORD):
                 updates[CONF_PASSWORD] = user_input[CONF_PASSWORD]
 
-            validation_data = {**reauth_entry.data, **updates}
             try:
+                validation_data = await _async_finalize_config_data(
+                    self.hass,
+                    {**reauth_entry.data, **updates},
+                    ca_upload_id=ca_upload_id,
+                    existing_data=self._ca_existing_data(reauth_entry.data),
+                )
+                if ca_upload_id and CONF_CA_CERT in validation_data:
+                    self._pending_ca_cert = validation_data[CONF_CA_CERT]
+
                 await validate_input(validation_data)
+            except InvalidUpdateIntervalError:
+                errors[CONF_UPDATE_INTERVAL] = "invalid_update_interval"
             except AuthenticationError:
                 errors["base"] = "invalid_auth"
             except CannotConnectError:
@@ -437,15 +603,18 @@ class VictronGxConfigFlow(ConfigFlow, domain=DOMAIN):
             else:
                 return self.async_update_reload_and_abort(
                     reauth_entry,
-                    data_updates=updates,
+                    data=validation_data,
                 )
 
         suggested_values = {
             CONF_USERNAME: reauth_entry.data.get(CONF_USERNAME, None),
             CONF_SSL: reauth_entry.data.get(CONF_SSL, False),
+            CONF_VERIFY_SSL: reauth_entry.data.get(CONF_VERIFY_SSL, False),
         }
         if user_input is not None:
-            suggested_values.update(user_input)
+            suggested_values.update(
+                {key: value for key, value in user_input.items() if key != CONF_CA_CERT}
+            )
         return self.async_show_form(
             step_id="reauth_confirm",
             data_schema=self.add_suggested_values_to_schema(
