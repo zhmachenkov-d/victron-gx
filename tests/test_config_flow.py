@@ -143,9 +143,10 @@ def test_normalize_update_interval() -> None:
             _normalize_update_interval({CONF_UPDATE_INTERVAL: invalid})
 
 
-def test_resolve_update_frequency_defaults_to_auto() -> None:
-    """Unset update interval resolves to the library auto profile."""
-    assert resolve_update_frequency({}) == UPDATE_FREQUENCY_AUTO
+def test_resolve_update_frequency_defaults_to_none() -> None:
+    """Unset update interval resolves to None (update on every value change)."""
+    assert resolve_update_frequency({}) is None
+    assert resolve_update_frequency({CONF_UPDATE_INTERVAL: ""}) is None
     assert (
         resolve_update_frequency({CONF_UPDATE_INTERVAL: VALIDATE_UPDATE_INTERVAL})
         == VALIDATE_UPDATE_INTERVAL
@@ -213,16 +214,13 @@ async def test_validate_input_connects_and_disconnects(
     hub.disconnect.assert_awaited_once()
 
 
-async def test_validate_input_defaults_update_frequency_to_auto(
+async def test_validate_input_defaults_update_frequency_to_none(
     fake_victron_hub: type[FakeVictronVenusHub],
 ) -> None:
-    """Pass auto update frequency when the interval is unset."""
+    """Pass None update frequency when the interval is unset."""
     await validate_input(_user_input())
 
-    assert (
-        fake_victron_hub.instances[0].kwargs["update_frequency_seconds"]
-        == UPDATE_FREQUENCY_AUTO
-    )
+    assert fake_victron_hub.instances[0].kwargs["update_frequency_seconds"] is None
 
 
 async def test_validate_input_builds_unverified_ssl_context(
