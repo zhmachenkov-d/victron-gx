@@ -35,10 +35,27 @@ The integration package installs `victron-mqtt==2026.7.6` through
 
 ## Installation
 
+### HACS (recommended)
+
+1. Install [HACS](https://hacs.xyz/) if you do not already have it.
+2. In HACS, add a custom repository:
+   - Repository: `denys/victron-gx`
+   - Category: Integration
+3. Search for **Victron GX Hub** and download/install it.
+4. Restart Home Assistant.
+
+Or use this My Home Assistant link to add the custom repository:
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=denys&repository=victron-gx&category=integration)
+
+### Manual
+
 Copy `custom_components/victron_gx_hub` into your Home Assistant
 `custom_components` directory, then restart Home Assistant.
 
-After restart, add the integration from:
+### Add the integration
+
+After install and restart, add the integration from:
 
 ```text
 Settings -> Devices & services -> Add integration -> Victron GX Hub
