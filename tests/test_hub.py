@@ -32,8 +32,9 @@ from custom_components.victron_gx_hub.const import (
     CONF_SERIAL,
     CONF_UPDATE_INTERVAL,
     DOMAIN,
+    UPDATE_FREQUENCY_REALTIME,
 )
-from custom_components.victron_gx_hub.hub import Hub
+from custom_components.victron_gx_hub.hub import Hub, resolve_update_frequency
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -182,6 +183,32 @@ def test_hub_defaults_update_frequency_to_none(
 
     assert fake_victron_hub.instances[0].kwargs["update_frequency_seconds"] is None
     assert fake_victron_hub.instances[0].kwargs["ssl_context"] is None
+
+
+def test_hub_maps_realtime_update_frequency_to_none(
+    hass: HomeAssistant,
+    fake_victron_hub: type[FakeVictronVenusHub],
+) -> None:
+    """Map the realtime profile to None for the wrapped hub."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_HOST: HOST,
+            CONF_PORT: 1883,
+            CONF_SSL: False,
+            CONF_INSTALLATION_ID: INSTALLATION_ID,
+            CONF_UPDATE_INTERVAL: UPDATE_FREQUENCY_REALTIME,
+        },
+    )
+    entry.add_to_hass(hass)
+
+    Hub(hass, entry)
+
+    assert fake_victron_hub.instances[0].kwargs["update_frequency_seconds"] is None
+    assert (
+        resolve_update_frequency({CONF_UPDATE_INTERVAL: UPDATE_FREQUENCY_REALTIME})
+        is None
+    )
 
 
 async def test_start_connects_wrapped_hub(

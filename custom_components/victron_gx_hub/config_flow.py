@@ -35,6 +35,7 @@ from .const import (
     CONF_UPDATE_INTERVAL,
     CONF_UPDATE_INTERVAL_SECONDS,
     DOMAIN,
+    UPDATE_FREQUENCY_REALTIME,
 )
 from .hub import resolve_update_frequency
 from .ssl_util import build_ssl_context
@@ -55,7 +56,11 @@ TO_REDACT = {CONF_USERNAME, CONF_PASSWORD, CONF_CA_CERT}
 ENTRY_TITLE_FORMAT = "Victron OS {installation_id} ({host}:{port})"
 
 UPDATE_INTERVAL_PROFILES = frozenset(
-    {UPDATE_FREQUENCY_AUTO, UPDATE_FREQUENCY_AUTO_POWER_NONE}
+    {
+        UPDATE_FREQUENCY_REALTIME,
+        UPDATE_FREQUENCY_AUTO,
+        UPDATE_FREQUENCY_AUTO_POWER_NONE,
+    }
 )
 
 MIN_UPDATE_INTERVAL_SECONDS = 1
@@ -64,6 +69,7 @@ MAX_UPDATE_INTERVAL_SECONDS = 300
 UPDATE_INTERVAL_SELECTOR = selector.SelectSelector(
     selector.SelectSelectorConfig(
         options=[
+            UPDATE_FREQUENCY_REALTIME,
             UPDATE_FREQUENCY_AUTO,
             UPDATE_FREQUENCY_AUTO_POWER_NONE,
         ],
@@ -93,7 +99,9 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_SSL, default=False): selector.BooleanSelector(),
         vol.Optional(CONF_VERIFY_SSL, default=False): selector.BooleanSelector(),
         vol.Optional(CONF_CA_CERT): CA_CERT_SELECTOR,
-        vol.Optional(CONF_UPDATE_INTERVAL): UPDATE_INTERVAL_SELECTOR,
+        vol.Optional(
+            CONF_UPDATE_INTERVAL, default=UPDATE_FREQUENCY_REALTIME
+        ): UPDATE_INTERVAL_SELECTOR,
     }
 )
 
@@ -106,7 +114,9 @@ STEP_SSDP_AUTH_DATA_SCHEMA = vol.Schema(
         vol.Optional(CONF_SSL, default=False): selector.BooleanSelector(),
         vol.Optional(CONF_VERIFY_SSL, default=False): selector.BooleanSelector(),
         vol.Optional(CONF_CA_CERT): CA_CERT_SELECTOR,
-        vol.Optional(CONF_UPDATE_INTERVAL): UPDATE_INTERVAL_SELECTOR,
+        vol.Optional(
+            CONF_UPDATE_INTERVAL, default=UPDATE_FREQUENCY_REALTIME
+        ): UPDATE_INTERVAL_SELECTOR,
     }
 )
 
@@ -197,7 +207,7 @@ def _normalize_update_interval(data: dict[str, Any]) -> dict[str, Any]:
 
     value = normalized[CONF_UPDATE_INTERVAL]
     if value in (None, ""):
-        normalized.pop(CONF_UPDATE_INTERVAL, None)
+        normalized[CONF_UPDATE_INTERVAL] = UPDATE_FREQUENCY_REALTIME
     elif value in UPDATE_INTERVAL_PROFILES:
         normalized[CONF_UPDATE_INTERVAL] = value
     else:
@@ -257,7 +267,9 @@ def _suggested_update_interval(entry_data: Mapping[str, Any]) -> Any:
     """Return the stored update interval, including legacy key migration."""
     if CONF_UPDATE_INTERVAL in entry_data:
         return entry_data[CONF_UPDATE_INTERVAL]
-    return entry_data.get(CONF_UPDATE_INTERVAL_SECONDS)
+    if CONF_UPDATE_INTERVAL_SECONDS in entry_data:
+        return entry_data[CONF_UPDATE_INTERVAL_SECONDS]
+    return UPDATE_FREQUENCY_REALTIME
 
 
 class VictronGxConfigFlow(ConfigFlow, domain=DOMAIN):

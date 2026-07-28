@@ -36,6 +36,7 @@ from .const import (
     CONF_UPDATE_INTERVAL,
     CONF_UPDATE_INTERVAL_SECONDS,
     DOMAIN,
+    UPDATE_FREQUENCY_REALTIME,
 )
 from .ssl_util import build_ssl_context
 
@@ -55,11 +56,12 @@ def resolve_update_frequency(config: dict[str, Any]) -> int | str | None:
 
     Prefers ``update_interval``, falls back to legacy ``update_interval_seconds``,
     and defaults to None (update on every value change) when unset.
+    ``UPDATE_FREQUENCY_REALTIME`` maps to None for the hub.
     """
     value = config.get(CONF_UPDATE_INTERVAL)
     if value is None:
         value = config.get(CONF_UPDATE_INTERVAL_SECONDS)
-    if value in (None, ""):
+    if value == UPDATE_FREQUENCY_REALTIME:
         return None
     return value
 

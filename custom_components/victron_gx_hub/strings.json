@@ -15,7 +15,7 @@
           "username": "[%key:component::victron_gx_hub::common::config_flow_username%]"
         },
         "data_description": {
-          "update_interval": "Hub metric update cadence. Choose auto or auto_power_none, or enter seconds (1-300). Leave blank to update on every value change.",
+          "update_interval": "Hub metric update cadence. Choose Realtime, auto, or auto_power_none, or enter seconds (1-300). Realtime updates on every value change.",
           "host": "Hostname or IP address of Victron device, usually mDNS name like 'venus.local'",
           "password": "Password for the Victron device, default is empty. This is not your VRM password.",
           "port": "The MQTT port on the host. Normally it is 1883.",
@@ -95,7 +95,7 @@
     "error": {
       "invalid_auth": "Invalid authentication credentials.",
       "cannot_connect": "Unable to connect to the Victron GX device.",
-      "invalid_update_interval": "Update interval must be auto, auto_power_none, or an integer from 1 to 300.",
+      "invalid_update_interval": "Update interval must be realtime, auto, auto_power_none, or an integer from 1 to 300.",
       "unknown": "Unexpected error occurred."
     },
     "abort": {
@@ -2127,6 +2127,7 @@
   "selector": {
     "update_interval": {
       "options": {
+        "realtime": "Realtime",
         "auto": "Automatic",
         "auto_power_none": "Automatic (power on change)"
       }
