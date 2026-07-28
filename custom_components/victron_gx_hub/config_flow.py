@@ -58,6 +58,9 @@ UPDATE_INTERVAL_PROFILES = frozenset(
     {UPDATE_FREQUENCY_AUTO, UPDATE_FREQUENCY_AUTO_POWER_NONE}
 )
 
+MIN_UPDATE_INTERVAL_SECONDS = 1
+MAX_UPDATE_INTERVAL_SECONDS = 300
+
 UPDATE_INTERVAL_SELECTOR = selector.SelectSelector(
     selector.SelectSelectorConfig(
         options=[
@@ -69,6 +72,11 @@ UPDATE_INTERVAL_SELECTOR = selector.SelectSelector(
         translation_key="update_interval",
     )
 )
+
+
+class InvalidUpdateIntervalError(ValueError):
+    """Raised when the update interval is not a supported profile or range."""
+
 
 CA_CERT_SELECTOR = selector.FileSelector(
     selector.FileSelectorConfig(accept=".pem,.crt,.cer")
@@ -193,7 +201,13 @@ def _normalize_update_interval(data: dict[str, Any]) -> dict[str, Any]:
     elif value in UPDATE_INTERVAL_PROFILES:
         normalized[CONF_UPDATE_INTERVAL] = value
     else:
-        normalized[CONF_UPDATE_INTERVAL] = int(value)
+        try:
+            interval = int(value)
+        except (TypeError, ValueError) as err:
+            raise InvalidUpdateIntervalError from err
+        if not (MIN_UPDATE_INTERVAL_SECONDS <= interval <= MAX_UPDATE_INTERVAL_SECONDS):
+            raise InvalidUpdateIntervalError
+        normalized[CONF_UPDATE_INTERVAL] = interval
     return normalized
 
 
@@ -258,6 +272,16 @@ class VictronGxConfigFlow(ConfigFlow, domain=DOMAIN):
         self.installation_id: str | None = None
         self.friendly_name: str | None = None
         self.model_name: str | None = None
+        self._pending_ca_cert: str | None = None
+
+    def _ca_existing_data(
+        self, entry_data: Mapping[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Merge entry data with a CA PEM retained across validation retries."""
+        existing = dict(entry_data or {})
+        if self._pending_ca_cert is not None:
+            existing[CONF_CA_CERT] = self._pending_ca_cert
+        return existing
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -270,21 +294,26 @@ class VictronGxConfigFlow(ConfigFlow, domain=DOMAIN):
                 "User input received: %s",
                 async_redact_data(user_input, TO_REDACT),
             )
-            data = await _async_finalize_config_data(
-                self.hass,
-                {
-                    **user_input,
-                    CONF_SERIAL: self.serial,
-                    CONF_MODEL: self.model_name,
-                },
-                ca_upload_id=ca_upload_id,
-            )
-
             try:
+                data = await _async_finalize_config_data(
+                    self.hass,
+                    {
+                        **user_input,
+                        CONF_SERIAL: self.serial,
+                        CONF_MODEL: self.model_name,
+                    },
+                    ca_upload_id=ca_upload_id,
+                    existing_data=self._ca_existing_data(),
+                )
+                if ca_upload_id and CONF_CA_CERT in data:
+                    self._pending_ca_cert = data[CONF_CA_CERT]
+
                 installation_id = await validate_input(data)
                 _LOGGER.debug(
                     "Successfully connected to Victron device: %s", installation_id
                 )
+            except InvalidUpdateIntervalError:
+                errors[CONF_UPDATE_INTERVAL] = "invalid_update_interval"
             except AuthenticationError:
                 _LOGGER.debug(
                     "Authentication failed during initial setup", exc_info=True
@@ -410,26 +439,31 @@ class VictronGxConfigFlow(ConfigFlow, domain=DOMAIN):
                 "SSDP auth user input received: %s",
                 async_redact_data(user_input, TO_REDACT),
             )
-            data = await _async_finalize_config_data(
-                self.hass,
-                {
-                    CONF_HOST: self.hostname,
-                    CONF_PORT: DEFAULT_PORT,
-                    CONF_SERIAL: self.serial,
-                    CONF_INSTALLATION_ID: self.installation_id,
-                    CONF_MODEL: self.model_name,
-                    CONF_USERNAME: user_input.get(CONF_USERNAME) or None,
-                    CONF_PASSWORD: user_input.get(CONF_PASSWORD) or None,
-                    CONF_SSL: user_input.get(CONF_SSL, False),
-                    CONF_VERIFY_SSL: user_input.get(CONF_VERIFY_SSL, False),
-                    CONF_UPDATE_INTERVAL: user_input.get(CONF_UPDATE_INTERVAL),
-                },
-                ca_upload_id=ca_upload_id,
-            )
-
             try:
+                data = await _async_finalize_config_data(
+                    self.hass,
+                    {
+                        CONF_HOST: self.hostname,
+                        CONF_PORT: DEFAULT_PORT,
+                        CONF_SERIAL: self.serial,
+                        CONF_INSTALLATION_ID: self.installation_id,
+                        CONF_MODEL: self.model_name,
+                        CONF_USERNAME: user_input.get(CONF_USERNAME) or None,
+                        CONF_PASSWORD: user_input.get(CONF_PASSWORD) or None,
+                        CONF_SSL: user_input.get(CONF_SSL, False),
+                        CONF_VERIFY_SSL: user_input.get(CONF_VERIFY_SSL, False),
+                        CONF_UPDATE_INTERVAL: user_input.get(CONF_UPDATE_INTERVAL),
+                    },
+                    ca_upload_id=ca_upload_id,
+                    existing_data=self._ca_existing_data(),
+                )
+                if ca_upload_id and CONF_CA_CERT in data:
+                    self._pending_ca_cert = data[CONF_CA_CERT]
+
                 await validate_input(data)
                 _LOGGER.debug("SSDP authentication successful")
+            except InvalidUpdateIntervalError:
+                errors[CONF_UPDATE_INTERVAL] = "invalid_update_interval"
             except AuthenticationError:
                 _LOGGER.debug("Authentication failed during SSDP setup", exc_info=True)
                 errors["base"] = "invalid_auth"
@@ -468,14 +502,19 @@ class VictronGxConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             ca_upload_id = user_input.get(CONF_CA_CERT)
             data = _apply_credential_updates(dict(reconfigure_entry.data), user_input)
-            data = await _async_finalize_config_data(
-                self.hass,
-                data,
-                ca_upload_id=ca_upload_id,
-                existing_data=reconfigure_entry.data,
-            )
             try:
+                data = await _async_finalize_config_data(
+                    self.hass,
+                    data,
+                    ca_upload_id=ca_upload_id,
+                    existing_data=self._ca_existing_data(reconfigure_entry.data),
+                )
+                if ca_upload_id and CONF_CA_CERT in data:
+                    self._pending_ca_cert = data[CONF_CA_CERT]
+
                 installation_id = await validate_input(data)
+            except InvalidUpdateIntervalError:
+                errors[CONF_UPDATE_INTERVAL] = "invalid_update_interval"
             except AuthenticationError:
                 errors["base"] = "invalid_auth"
             except CannotConnectError:
@@ -541,15 +580,19 @@ class VictronGxConfigFlow(ConfigFlow, domain=DOMAIN):
             if user_input.get(CONF_PASSWORD):
                 updates[CONF_PASSWORD] = user_input[CONF_PASSWORD]
 
-            validation_data = await _async_finalize_config_data(
-                self.hass,
-                {**reauth_entry.data, **updates},
-                ca_upload_id=ca_upload_id,
-                existing_data=reauth_entry.data,
-            )
-
             try:
+                validation_data = await _async_finalize_config_data(
+                    self.hass,
+                    {**reauth_entry.data, **updates},
+                    ca_upload_id=ca_upload_id,
+                    existing_data=self._ca_existing_data(reauth_entry.data),
+                )
+                if ca_upload_id and CONF_CA_CERT in validation_data:
+                    self._pending_ca_cert = validation_data[CONF_CA_CERT]
+
                 await validate_input(validation_data)
+            except InvalidUpdateIntervalError:
+                errors[CONF_UPDATE_INTERVAL] = "invalid_update_interval"
             except AuthenticationError:
                 errors["base"] = "invalid_auth"
             except CannotConnectError:

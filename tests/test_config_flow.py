@@ -29,6 +29,7 @@ from custom_components.victron_gx_hub import config_flow
 from custom_components.victron_gx_hub.config_flow import (
     DEFAULT_PORT,
     ENTRY_TITLE_FORMAT,
+    InvalidUpdateIntervalError,
     _apply_credential_updates,
     _normalize_update_interval,
     validate_input,
@@ -42,6 +43,7 @@ from custom_components.victron_gx_hub.const import (
     DOMAIN,
 )
 from custom_components.victron_gx_hub.hub import resolve_update_frequency
+from tests.test_ssl_util import _self_signed_ca_pem
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -121,6 +123,12 @@ def test_normalize_update_interval() -> None:
     assert _normalize_update_interval({CONF_UPDATE_INTERVAL: "30"}) == {
         CONF_UPDATE_INTERVAL: 30
     }
+    assert _normalize_update_interval({CONF_UPDATE_INTERVAL: 1}) == {
+        CONF_UPDATE_INTERVAL: 1
+    }
+    assert _normalize_update_interval({CONF_UPDATE_INTERVAL: 300}) == {
+        CONF_UPDATE_INTERVAL: 300
+    }
     assert _normalize_update_interval(
         {CONF_UPDATE_INTERVAL: UPDATE_FREQUENCY_AUTO}
     ) == {CONF_UPDATE_INTERVAL: UPDATE_FREQUENCY_AUTO}
@@ -130,6 +138,9 @@ def test_normalize_update_interval() -> None:
     assert _normalize_update_interval({CONF_UPDATE_INTERVAL_SECONDS: 45}) == {
         CONF_UPDATE_INTERVAL: 45
     }
+    for invalid in (0, 301, "abc"):
+        with pytest.raises(InvalidUpdateIntervalError):
+            _normalize_update_interval({CONF_UPDATE_INTERVAL: invalid})
 
 
 def test_resolve_update_frequency_defaults_to_auto() -> None:
@@ -304,6 +315,64 @@ async def test_user_flow_shows_errors(
     assert result["type"] == "form"
     assert result["step_id"] == "user"
     assert result["errors"] == {"base": error}
+
+
+async def test_user_flow_retains_ca_cert_across_validation_retry(
+    hass: HomeAssistant,
+    fake_victron_hub: type[FakeVictronVenusHub],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reuse an uploaded CA PEM when validation fails and the form is retried."""
+    ca_pem = _self_signed_ca_pem()
+    monkeypatch.setattr(
+        config_flow,
+        "_async_read_uploaded_ca",
+        AsyncMock(return_value=ca_pem),
+    )
+    fake_victron_hub.connect_side_effect = AuthenticationError
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_USER},
+        data=_user_input(
+            **{
+                CONF_SSL: True,
+                CONF_VERIFY_SSL: True,
+                CONF_CA_CERT: "upload-id",
+            }
+        ),
+    )
+
+    assert result["type"] == "form"
+    assert result["errors"] == {"base": "invalid_auth"}
+
+    fake_victron_hub.connect_side_effect = None
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input=_user_input(**{CONF_SSL: True, CONF_VERIFY_SSL: True}),
+    )
+
+    assert result["type"] == "create_entry"
+    assert result["data"][CONF_CA_CERT] == ca_pem
+
+
+@pytest.mark.parametrize("invalid_interval", ["999", "nope"])
+async def test_user_flow_rejects_invalid_update_interval(
+    hass: HomeAssistant,
+    fake_victron_hub: type[FakeVictronVenusHub],
+    invalid_interval: str,
+) -> None:
+    """Show a field error when the custom update interval is invalid."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_USER},
+        data=_user_input(**{CONF_UPDATE_INTERVAL: invalid_interval}),
+    )
+
+    assert result["type"] == "form"
+    assert result["step_id"] == "user"
+    assert result["errors"] == {CONF_UPDATE_INTERVAL: "invalid_update_interval"}
+    assert not fake_victron_hub.instances
 
 
 async def test_ssdp_flow_creates_entry_after_confirmation(

@@ -95,6 +95,7 @@
     "error": {
       "invalid_auth": "Invalid authentication credentials.",
       "cannot_connect": "Unable to connect to the Victron GX device.",
+      "invalid_update_interval": "Update interval must be auto, auto_power_none, or an integer from 1 to 300.",
       "unknown": "Unexpected error occurred."
     },
     "abort": {

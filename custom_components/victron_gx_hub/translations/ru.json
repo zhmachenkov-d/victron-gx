@@ -95,6 +95,7 @@
     "error": {
       "invalid_auth": "Неверные учётные данные.",
       "cannot_connect": "Не удалось подключиться к устройству Victron GX.",
+      "invalid_update_interval": "Интервал обновления должен быть auto, auto_power_none или целым числом от 1 до 300.",
       "unknown": "Произошла непредвиденная ошибка."
     },
     "abort": {
