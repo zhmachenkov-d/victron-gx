@@ -1,5 +1,6 @@
 """Support for Victron GX sensors."""
 
+from datetime import datetime
 import logging
 from typing import Any
 
@@ -36,10 +37,17 @@ METRIC_TYPE_TO_DEVICE_CLASS: dict[MetricType, SensorDeviceClass] = {
     MetricType.FREQUENCY: SensorDeviceClass.FREQUENCY,
     MetricType.ELECTRIC_STORAGE_PERCENTAGE: SensorDeviceClass.BATTERY,
     MetricType.TEMPERATURE: SensorDeviceClass.TEMPERATURE,
+    MetricType.HUMIDITY: SensorDeviceClass.HUMIDITY,
+    MetricType.PRESSURE: SensorDeviceClass.PRESSURE,
+    MetricType.DISTANCE: SensorDeviceClass.DISTANCE,
+    MetricType.POWER_FACTOR: SensorDeviceClass.POWER_FACTOR,
+    MetricType.COST: SensorDeviceClass.MONETARY,
     MetricType.SPEED: SensorDeviceClass.SPEED,
     MetricType.LIQUID_VOLUME: SensorDeviceClass.VOLUME_STORAGE,
     MetricType.DURATION: SensorDeviceClass.DURATION,
     MetricType.ENUM: SensorDeviceClass.ENUM,
+    MetricType.IRRADIANCE: SensorDeviceClass.IRRADIANCE,
+    MetricType.TIMESTAMP: SensorDeviceClass.TIMESTAMP,
 }
 
 METRIC_NATURE_TO_STATE_CLASS: dict[MetricNature, SensorStateClass] = {
@@ -91,10 +99,10 @@ class VictronSensor(VictronBaseEntity, SensorEntity):
         """Initialize the sensor."""
         super().__init__(device, metric, device_info, installation_id)
         self._attr_device_class = METRIC_TYPE_TO_DEVICE_CLASS.get(metric.metric_type)
-        # Enum sensors must not have a state class
+        # Enum and timestamp sensors must not have a state class
         if self._attr_device_class == SensorDeviceClass.ENUM:
             self._attr_options = metric.enum_values or []
-        else:
+        elif self._attr_device_class != SensorDeviceClass.TIMESTAMP:
             self._attr_state_class = METRIC_NATURE_TO_STATE_CLASS.get(
                 metric.metric_nature
             )
@@ -116,6 +124,8 @@ class VictronSensor(VictronBaseEntity, SensorEntity):
             return None
         if self._attr_device_class == SensorDeviceClass.ENUM:
             return self._normalize_enum_value(value)
+        if self._attr_device_class == SensorDeviceClass.TIMESTAMP:
+            return self._normalize_timestamp_value(value)
         if self._attr_device_class is not None:
             return self._normalize_numeric_value(value)
         if isinstance(value, VictronEnum):
@@ -135,6 +145,14 @@ class VictronSensor(VictronBaseEntity, SensorEntity):
         if isinstance(value, str) and value in options:
             return value
         _LOGGER.warning("Ignoring sensor value not in options: %s", value)
+        return None
+
+    @staticmethod
+    def _normalize_timestamp_value(value: Any) -> datetime | None:
+        """Pass through datetime values for timestamp sensors."""
+        if isinstance(value, datetime):
+            return value
+        _LOGGER.warning("Ignoring non-datetime timestamp sensor value: %s", value)
         return None
 
     @staticmethod

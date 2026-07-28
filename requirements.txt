@@ -1,6 +1,6 @@
 colorlog==6.10.1
 homeassistant==2026.5.0
-victron-mqtt==2026.6.6
+victron-mqtt==2026.7.6
 pip>=21.3.1
 pre-commit==4.2.0
 pytest

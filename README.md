@@ -30,7 +30,7 @@ Assistant entities as Victron metrics are discovered.
 - A Victron GX device with MQTT on LAN enabled
 - Network access from Home Assistant to the GX device MQTT broker
 
-The integration package installs `victron-mqtt==2026.6.6` through
+The integration package installs `victron-mqtt==2026.7.6` through
 `custom_components/victron_gx_hub/manifest.json`.
 
 ## Installation

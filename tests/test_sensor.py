@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -199,6 +199,13 @@ async def test_async_setup_entry_skips_duplicate_sensor_metrics(
     [
         (MetricType.POWER, SensorDeviceClass.POWER),
         (MetricType.CURRENT, SensorDeviceClass.CURRENT),
+        (MetricType.HUMIDITY, SensorDeviceClass.HUMIDITY),
+        (MetricType.PRESSURE, SensorDeviceClass.PRESSURE),
+        (MetricType.DISTANCE, SensorDeviceClass.DISTANCE),
+        (MetricType.POWER_FACTOR, SensorDeviceClass.POWER_FACTOR),
+        (MetricType.COST, SensorDeviceClass.MONETARY),
+        (MetricType.IRRADIANCE, SensorDeviceClass.IRRADIANCE),
+        (MetricType.TIMESTAMP, SensorDeviceClass.TIMESTAMP),
         (MetricType.ENUM, SensorDeviceClass.ENUM),
     ],
 )
@@ -209,14 +216,65 @@ def test_metric_type_to_device_class(
     """Map Victron metric types to sensor device classes."""
     assert METRIC_TYPE_TO_DEVICE_CLASS[metric_type] == expected_device_class
 
+    value: Any = INITIAL_VALUE
+    if metric_type is MetricType.ENUM:
+        value = GenericOnOff.ON
+    elif metric_type is MetricType.TIMESTAMP:
+        value = datetime(2026, 7, 28, 12, 0, tzinfo=UTC)
+
     entity = VictronSensor(
         FakeDevice(),
-        FakeMetric(metric_type=metric_type),
+        FakeMetric(
+            metric_type=metric_type,
+            value=value,
+            enum_values=_enum_options() if metric_type is MetricType.ENUM else None,
+            unit_of_measurement=None
+            if metric_type in {MetricType.ENUM, MetricType.TIMESTAMP}
+            else CURRENT_UNIT,
+        ),
         _make_device_info(),
         "installation_1",
     )
 
     assert entity.device_class == expected_device_class
+
+
+def test_sensor_initializes_timestamp_without_state_class() -> None:
+    """Initialize timestamp sensors with datetime values and no state class."""
+    timestamp = datetime(2026, 7, 28, 12, 0, tzinfo=UTC)
+    entity = VictronSensor(
+        FakeDevice(),
+        FakeMetric(
+            metric_type=MetricType.TIMESTAMP,
+            value=timestamp,
+            unit_of_measurement=None,
+        ),
+        _make_device_info(),
+        "installation_1",
+    )
+
+    assert entity.device_class == SensorDeviceClass.TIMESTAMP
+    assert entity.native_value == timestamp
+    assert entity.state_class is None
+
+
+def test_sensor_ignores_non_datetime_timestamp_value(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Ignore non-datetime values for timestamp sensors."""
+    entity = VictronSensor(
+        FakeDevice(),
+        FakeMetric(
+            metric_type=MetricType.TIMESTAMP,
+            value=1234567890,
+            unit_of_measurement=None,
+        ),
+        _make_device_info(),
+        "installation_1",
+    )
+
+    assert entity.native_value is None
+    assert "Ignoring non-datetime timestamp sensor value" in caplog.text
 
 
 def test_sensor_initializes_numeric_properties() -> None:

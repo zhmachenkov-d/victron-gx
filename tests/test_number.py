@@ -235,6 +235,12 @@ async def test_async_setup_entry_skips_duplicate_number_metrics(
         (MetricType.POWER, NumberDeviceClass.POWER),
         (MetricType.CURRENT, NumberDeviceClass.CURRENT),
         (MetricType.ELECTRIC_STORAGE_PERCENTAGE, NumberDeviceClass.BATTERY),
+        (MetricType.HUMIDITY, NumberDeviceClass.HUMIDITY),
+        (MetricType.PRESSURE, NumberDeviceClass.PRESSURE),
+        (MetricType.DISTANCE, NumberDeviceClass.DISTANCE),
+        (MetricType.POWER_FACTOR, NumberDeviceClass.POWER_FACTOR),
+        (MetricType.COST, NumberDeviceClass.MONETARY),
+        (MetricType.IRRADIANCE, NumberDeviceClass.IRRADIANCE),
     ],
 )
 def test_metric_type_to_device_class(

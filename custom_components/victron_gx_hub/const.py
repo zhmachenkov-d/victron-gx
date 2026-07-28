@@ -6,7 +6,10 @@ DOMAIN = "victron_gx_hub"
 
 CONF_INSTALLATION_ID = "installation_id"
 CONF_SERIAL = "serial"
+CONF_UPDATE_INTERVAL = "update_interval"
+# Legacy key migrated to CONF_UPDATE_INTERVAL.
 CONF_UPDATE_INTERVAL_SECONDS = "update_interval_seconds"
+CONF_CA_CERT = "ca_cert"
 
 DIAGNOSTICS_REDACT = frozenset(
     {
@@ -15,6 +18,7 @@ DIAGNOSTICS_REDACT = frozenset(
         CONF_HOST,
         CONF_SERIAL,
         CONF_INSTALLATION_ID,
+        CONF_CA_CERT,
     }
 )
 
