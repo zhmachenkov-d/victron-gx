@@ -3,7 +3,7 @@
   "name": "Victron GX Hub",
   "codeowners": ["@zhmachenkov-d"],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": ["file_upload"],
   "documentation": "https://github.com/denys/victron-gx",
   "issue_tracker": "https://github.com/denys/victron-gx/issues",
   "integration_type": "hub",
