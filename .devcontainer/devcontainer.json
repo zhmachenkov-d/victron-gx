@@ -34,6 +34,8 @@
       }
     }
   },
+  "initializeCommand": "test -f .env || touch .env",
+  "runArgs": ["--env-file", "${localWorkspaceFolder}/.env"],
   "postCreateCommand": "scripts/setup-dev.sh",
   "remoteUser": "vscode"
 }

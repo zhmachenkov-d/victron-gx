@@ -94,6 +94,10 @@ source .venv/bin/activate
 Opening this repository in a dev container runs `scripts/setup-dev.sh`
 automatically via `postCreateCommand`.
 
+To pass environment variables into the Dev Container, copy `.env.example` to
+`.env`, add `KEY=value` lines, then rebuild the container. Values from `.env`
+are applied at container create time, so rebuild again after changing them.
+
 ## Quality Checks
 
 Git commits run [pre-commit](https://pre-commit.com/) hooks for Ruff,
