@@ -10,6 +10,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -88,7 +92,40 @@ jobs:
               if not match:
                   raise SystemExit(f"Invalid manifest version: {version}")
               major, minor, patch = (int(part) for part in match.groups())
-              log_args = []
+              baseline = ""
+              try:
+                  baseline = run(
+                      "git",
+                      "log",
+                      "-1",
+                      "--format=%H",
+                      f"--grep=^chore(release): v{re.escape(version)}$",
+                  )
+              except subprocess.CalledProcessError:
+                  baseline = ""
+              if not baseline:
+                  try:
+                      baseline = run(
+                          "git",
+                          "log",
+                          "-1",
+                          "--format=%H",
+                          "-S",
+                          f'"version": "{version}"',
+                          "--",
+                          str(manifest_path),
+                      )
+                  except subprocess.CalledProcessError:
+                      baseline = ""
+              if not baseline:
+                  write_output("skip", "true")
+                  write_output("should_release", "false")
+                  print(
+                      "No version tags and no baseline commit for current "
+                      f"manifest version {version}; skipping."
+                  )
+                  raise SystemExit(0)
+              log_args = [f"{baseline}..HEAD"]
 
           raw = run(
               "git",
