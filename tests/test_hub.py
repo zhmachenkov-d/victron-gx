@@ -18,7 +18,6 @@ from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from victron_mqtt import (
-    UPDATE_FREQUENCY_AUTO,
     AuthenticationError,
     CannotConnectError,
     GenericOnOff,
@@ -163,11 +162,11 @@ def test_hub_initializes_victron_client(
     assert victron_hub.kwargs["update_frequency_seconds"] == UPDATE_INTERVAL
 
 
-def test_hub_defaults_update_frequency_to_auto(
+def test_hub_defaults_update_frequency_to_none(
     hass: HomeAssistant,
     fake_victron_hub: type[FakeVictronVenusHub],
 ) -> None:
-    """Default the wrapped hub update frequency to auto when unset."""
+    """Default the wrapped hub update frequency to None when unset."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
@@ -181,10 +180,7 @@ def test_hub_defaults_update_frequency_to_auto(
 
     Hub(hass, entry)
 
-    assert (
-        fake_victron_hub.instances[0].kwargs["update_frequency_seconds"]
-        == UPDATE_FREQUENCY_AUTO
-    )
+    assert fake_victron_hub.instances[0].kwargs["update_frequency_seconds"] is None
     assert fake_victron_hub.instances[0].kwargs["ssl_context"] is None
 
 

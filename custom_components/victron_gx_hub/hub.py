@@ -18,7 +18,6 @@ from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.redact import async_redact_data
 from victron_mqtt import (
-    UPDATE_FREQUENCY_AUTO,
     AuthenticationError,
     CannotConnectError,
     Device as VictronVenusDevice,
@@ -51,16 +50,18 @@ type NewMetricCallback = Callable[
 ]
 
 
-def resolve_update_frequency(config: dict[str, Any]) -> int | str:
+def resolve_update_frequency(config: dict[str, Any]) -> int | str | None:
     """Resolve the hub update frequency from entry config.
 
     Prefers ``update_interval``, falls back to legacy ``update_interval_seconds``,
-    and defaults to auto when unset.
+    and defaults to None (update on every value change) when unset.
     """
     value = config.get(CONF_UPDATE_INTERVAL)
     if value is None:
         value = config.get(CONF_UPDATE_INTERVAL_SECONDS)
-    return value or UPDATE_FREQUENCY_AUTO
+    if value in (None, ""):
+        return None
+    return value
 
 
 class Hub:
