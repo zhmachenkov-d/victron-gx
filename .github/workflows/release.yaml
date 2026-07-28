@@ -2,19 +2,29 @@ name: Release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*"
 
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Verify tag matches manifest version
+        if: startsWith(github.ref, 'refs/tags/')
+        id: tag_version
         run: |
           TAG="${GITHUB_REF_NAME#v}"
           MANIFEST_VERSION="$(python3 -c "import json; print(json.load(open('custom_components/victron_gx_hub/manifest.json'))['version'])")"
@@ -23,21 +33,250 @@ jobs:
             exit 1
           fi
           echo "version=${TAG}" >> "$GITHUB_OUTPUT"
-        id: version
+
+      - name: Determine next version from Conventional Commits
+        if: github.ref == 'refs/heads/main'
+        id: bump
+        run: |
+          python3 <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          from datetime import date
+          from pathlib import Path
+
+          manifest_path = Path("custom_components/victron_gx_hub/manifest.json")
+          changelog_path = Path("CHANGELOG.md")
+          output_path = Path(os.environ["GITHUB_OUTPUT"])
+
+          subject_re = re.compile(
+              r"^(?P<type>\w+)(?:\((?P<scope>[^)]+)\))?(?P<breaking>!)?: (?P<desc>.+)$"
+          )
+          tag_re = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
+          bump_rank = {"major": 3, "minor": 2, "patch": 1}
+          type_bump = {"feat": "minor", "fix": "patch", "refactor": "patch"}
+          type_heading = {
+              "feat": "Features",
+              "fix": "Bug Fixes",
+              "refactor": "Refactors",
+          }
+
+
+          def run(*args: str) -> str:
+              return subprocess.check_output(args, text=True).rstrip("\n")
+
+
+          def write_output(key: str, value: str) -> None:
+              with output_path.open("a", encoding="utf-8") as handle:
+                  if "\n" in value:
+                      handle.write(f"{key}<<EOF\n{value}\nEOF\n")
+                  else:
+                      handle.write(f"{key}={value}\n")
+
+
+          tags = [
+              line
+              for line in run("git", "tag", "-l", "v*", "--sort=-v:refname").splitlines()
+              if tag_re.match(line)
+          ]
+          latest_tag = tags[0] if tags else None
+          if latest_tag:
+              match = tag_re.match(latest_tag)
+              assert match is not None
+              major, minor, patch = (int(part) for part in match.groups())
+              log_args = [f"{latest_tag}..HEAD"]
+          else:
+              version = json.loads(manifest_path.read_text(encoding="utf-8"))["version"]
+              match = re.match(r"^(\d+)\.(\d+)\.(\d+)$", version)
+              if not match:
+                  raise SystemExit(f"Invalid manifest version: {version}")
+              major, minor, patch = (int(part) for part in match.groups())
+              baseline = ""
+              try:
+                  baseline = run(
+                      "git",
+                      "log",
+                      "-1",
+                      "--format=%H",
+                      f"--grep=^chore(release): v{re.escape(version)}$",
+                  )
+              except subprocess.CalledProcessError:
+                  baseline = ""
+              if not baseline:
+                  try:
+                      baseline = run(
+                          "git",
+                          "log",
+                          "-1",
+                          "--format=%H",
+                          "-S",
+                          f'"version": "{version}"',
+                          "--",
+                          str(manifest_path),
+                      )
+                  except subprocess.CalledProcessError:
+                      baseline = ""
+              if not baseline:
+                  write_output("skip", "true")
+                  write_output("should_release", "false")
+                  print(
+                      "No version tags and no baseline commit for current "
+                      f"manifest version {version}; skipping."
+                  )
+                  raise SystemExit(0)
+              log_args = [f"{baseline}..HEAD"]
+
+          raw = run(
+              "git",
+              "log",
+              *log_args,
+              "--pretty=format:%s%x00%b%x00",
+          )
+          entries: list[tuple[str, str]] = []
+          highest = None
+          if raw:
+              parts = raw.split("\0")
+              while parts and parts[-1] == "":
+                  parts.pop()
+              for index in range(0, len(parts), 2):
+                  subject = parts[index].strip()
+                  body = parts[index + 1] if index + 1 < len(parts) else ""
+                  if subject.startswith("chore(release):"):
+                      continue
+                  parsed = subject_re.match(subject)
+                  if not parsed:
+                      continue
+                  commit_type = parsed.group("type")
+                  description = parsed.group("desc").strip()
+                  breaking = bool(parsed.group("breaking")) or (
+                      "BREAKING CHANGE:" in body or "BREAKING-CHANGE:" in body
+                  )
+                  if breaking:
+                      bump = "major"
+                      heading = "Breaking Changes"
+                  elif commit_type in type_bump:
+                      bump = type_bump[commit_type]
+                      heading = type_heading[commit_type]
+                  else:
+                      continue
+                  if highest is None or bump_rank[bump] > bump_rank[highest]:
+                      highest = bump
+                  entries.append((heading, description))
+
+          if highest is None:
+              write_output("skip", "true")
+              write_output("should_release", "false")
+              print("No releasable Conventional Commits since last tag; skipping.")
+              raise SystemExit(0)
+
+          if highest == "major":
+              major, minor, patch = major + 1, 0, 0
+          elif highest == "minor":
+              minor, patch = minor + 1, 0
+          else:
+              patch += 1
+
+          next_version = f"{major}.{minor}.{patch}"
+          today = date.today().isoformat()
+
+          sections = {
+              "Breaking Changes": [],
+              "Features": [],
+              "Bug Fixes": [],
+              "Refactors": [],
+          }
+          for heading, description in entries:
+              sections[heading].append(f"- {description}")
+
+          section_lines = [f"## [{next_version}] - {today}", ""]
+          for heading, bullets in sections.items():
+              if not bullets:
+                  continue
+              section_lines.append(f"### {heading}")
+              section_lines.extend(bullets)
+              section_lines.append("")
+          section_body = "\n".join(section_lines).rstrip() + "\n"
+
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          manifest["version"] = next_version
+          manifest_path.write_text(
+              json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+          )
+
+          changelog_header = (
+              "# Changelog\n\n"
+              "All notable changes to this project will be documented in this file.\n\n"
+          )
+          if changelog_path.exists():
+              existing = changelog_path.read_text(encoding="utf-8")
+              section_match = re.search(r"^## ", existing, flags=re.MULTILINE)
+              if section_match:
+                  updated = (
+                      existing[: section_match.start()]
+                      + section_body
+                      + "\n"
+                      + existing[section_match.start() :]
+                  )
+              elif existing.lstrip().startswith("#"):
+                  updated = existing.rstrip() + "\n\n" + section_body
+              else:
+                  updated = changelog_header + section_body + "\n" + existing
+              changelog_path.write_text(updated, encoding="utf-8")
+          else:
+              changelog_path.write_text(changelog_header + section_body, encoding="utf-8")
+
+          write_output("skip", "false")
+          write_output("should_release", "true")
+          write_output("version", next_version)
+          write_output("changelog", section_body.rstrip())
+          print(f"Next version: {next_version} ({highest})")
+          print(section_body)
+          PY
+
+      - name: Commit manifest and changelog
+        if: github.ref == 'refs/heads/main' && steps.bump.outputs.should_release == 'true'
+        id: release_commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add custom_components/victron_gx_hub/manifest.json CHANGELOG.md
+          git commit -m "chore(release): v${{ steps.bump.outputs.version }}"
+          git push
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Create component ZIP
+        if: >-
+          startsWith(github.ref, 'refs/tags/') ||
+          (github.ref == 'refs/heads/main' && steps.bump.outputs.should_release == 'true')
         run: |
           cd custom_components/victron_gx_hub
           zip -r ../../victron_gx_hub.zip . \
             -x "*/__pycache__/*" "*__pycache__*" "*.pyc"
 
       - name: Upload release artifact
+        if: >-
+          startsWith(github.ref, 'refs/tags/') ||
+          (github.ref == 'refs/heads/main' && steps.bump.outputs.should_release == 'true')
         uses: actions/upload-artifact@v4
         with:
-          name: victron_gx_hub-${{ steps.version.outputs.version }}
+          name: victron_gx_hub-${{ steps.tag_version.outputs.version || steps.bump.outputs.version }}
           path: victron_gx_hub.zip
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release (auto)
+        if: github.ref == 'refs/heads/main' && steps.bump.outputs.should_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.bump.outputs.version }}
+          name: v${{ steps.bump.outputs.version }}
+          target_commitish: ${{ steps.release_commit.outputs.sha }}
+          body: ${{ steps.bump.outputs.changelog }}
+          draft: false
+          generate_release_notes: false
+          files: victron_gx_hub.zip
+
+      - name: Create GitHub Release (tag)
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           draft: false

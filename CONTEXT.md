@@ -9,7 +9,7 @@ A physical Victron GX setup identified by its installation ID and connected to o
 _Avoid_: Account, site
 
 **Update interval**:
-The cadence for hub metric updates for an Installation. Either a number of seconds, or an auto profile (`auto` / `auto_power_none`). When unset, the hub uses `auto`.
+The cadence for hub metric updates for an Installation. Either `realtime` (default; update on every value change), a number of seconds, or an auto profile (`auto` / `auto_power_none`).
 _Avoid_: Poll interval, update frequency, scan interval
 
 **Integration**:

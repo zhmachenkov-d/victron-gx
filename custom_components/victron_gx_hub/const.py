@@ -11,6 +11,9 @@ CONF_UPDATE_INTERVAL = "update_interval"
 CONF_UPDATE_INTERVAL_SECONDS = "update_interval_seconds"
 CONF_CA_CERT = "ca_cert"
 
+# Maps to hub update_frequency_seconds=None (update on every value change).
+UPDATE_FREQUENCY_REALTIME = "realtime"
+
 DIAGNOSTICS_REDACT = frozenset(
     {
         CONF_USERNAME,

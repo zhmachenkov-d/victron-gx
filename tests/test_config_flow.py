@@ -41,6 +41,7 @@ from custom_components.victron_gx_hub.const import (
     CONF_UPDATE_INTERVAL,
     CONF_UPDATE_INTERVAL_SECONDS,
     DOMAIN,
+    UPDATE_FREQUENCY_REALTIME,
 )
 from custom_components.victron_gx_hub.hub import resolve_update_frequency
 from tests.test_ssl_util import _self_signed_ca_pem
@@ -119,7 +120,15 @@ def _ssdp_info(**upnp_overrides: str) -> SimpleNamespace:
 def test_normalize_update_interval() -> None:
     """Normalize optional update interval fields and migrate the legacy key."""
     assert _normalize_update_interval({CONF_HOST: HOST}) == {CONF_HOST: HOST}
-    assert _normalize_update_interval({CONF_UPDATE_INTERVAL: ""}) == {}
+    assert _normalize_update_interval({CONF_UPDATE_INTERVAL: ""}) == {
+        CONF_UPDATE_INTERVAL: UPDATE_FREQUENCY_REALTIME
+    }
+    assert _normalize_update_interval({CONF_UPDATE_INTERVAL: None}) == {
+        CONF_UPDATE_INTERVAL: UPDATE_FREQUENCY_REALTIME
+    }
+    assert _normalize_update_interval(
+        {CONF_UPDATE_INTERVAL: UPDATE_FREQUENCY_REALTIME}
+    ) == {CONF_UPDATE_INTERVAL: UPDATE_FREQUENCY_REALTIME}
     assert _normalize_update_interval({CONF_UPDATE_INTERVAL: "30"}) == {
         CONF_UPDATE_INTERVAL: 30
     }
@@ -144,9 +153,12 @@ def test_normalize_update_interval() -> None:
 
 
 def test_resolve_update_frequency_defaults_to_none() -> None:
-    """Unset update interval resolves to None (update on every value change)."""
+    """Unset or realtime update interval resolves to None."""
     assert resolve_update_frequency({}) is None
-    assert resolve_update_frequency({CONF_UPDATE_INTERVAL: ""}) is None
+    assert (
+        resolve_update_frequency({CONF_UPDATE_INTERVAL: UPDATE_FREQUENCY_REALTIME})
+        is None
+    )
     assert (
         resolve_update_frequency({CONF_UPDATE_INTERVAL: VALIDATE_UPDATE_INTERVAL})
         == VALIDATE_UPDATE_INTERVAL
@@ -285,6 +297,22 @@ async def test_user_flow_creates_entry(
     assert result["data"][CONF_INSTALLATION_ID] == INSTALLATION_ID
     assert result["data"][CONF_UPDATE_INTERVAL] == USER_UPDATE_INTERVAL
     assert fake_victron_hub.instances[0].connect.await_count == 1
+
+
+async def test_user_flow_defaults_update_interval_to_realtime(
+    hass: HomeAssistant,
+    fake_victron_hub: type[FakeVictronVenusHub],
+) -> None:
+    """Store realtime when the user leaves the default update interval."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_USER},
+        data=_user_input(**{CONF_UPDATE_INTERVAL: UPDATE_FREQUENCY_REALTIME}),
+    )
+
+    assert result["type"] == "create_entry"
+    assert result["data"][CONF_UPDATE_INTERVAL] == UPDATE_FREQUENCY_REALTIME
+    assert fake_victron_hub.instances[0].kwargs["update_frequency_seconds"] is None
 
 
 @pytest.mark.parametrize(
