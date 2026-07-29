@@ -75,6 +75,21 @@ async def test_async_setup_entry_starts_hub_after_forwarding_platforms(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Set up platforms, start the hub, and register stop cleanup."""
+    call_order: list[str] = []
+    apply_overlay = AsyncMock(
+        side_effect=lambda *_args, **_kwargs: call_order.append("overlay")
+    )
+
+    def _make_hub(hass_arg: HomeAssistant, entry: MockConfigEntry) -> FakeHub:
+        call_order.append("hub")
+        hub = FakeHub(hass_arg, entry)
+        fake_hub_factory.append(hub)
+        return hub
+
+    monkeypatch.setattr("custom_components.victron_gx_hub.Hub", _make_hub)
+    monkeypatch.setattr(
+        "custom_components.victron_gx_hub.async_apply_topic_overlay", apply_overlay
+    )
     forward_setups = AsyncMock()
     monkeypatch.setattr(
         hass.config_entries, "async_forward_entry_setups", forward_setups
@@ -82,8 +97,10 @@ async def test_async_setup_entry_starts_hub_after_forwarding_platforms(
 
     assert await async_setup_entry(hass, config_entry) is True
 
-    hub = fake_hub_factory[0]
+    hub = fake_hub_factory[-1]
     assert config_entry.runtime_data is hub
+    apply_overlay.assert_awaited_once_with(hass)
+    assert call_order[:2] == ["overlay", "hub"]
     forward_setups.assert_awaited_once_with(config_entry, PLATFORMS)
     hub.start.assert_awaited_once()
 

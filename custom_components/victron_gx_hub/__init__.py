@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform
 
 from .hub import Hub, VictronGxConfigEntry
+from .topics import async_apply_topic_overlay
 
 if TYPE_CHECKING:
     from homeassistant.core import Event, HomeAssistant
@@ -31,6 +32,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: VictronGxConfigEntry) ->
     """Set up victron_gx from a config entry."""
     _LOGGER.debug("async_setup_entry called for entry: %s", entry.entry_id)
 
+    await async_apply_topic_overlay(hass)
     hub = Hub(hass, entry)
     entry.runtime_data = hub
 

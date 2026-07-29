@@ -235,11 +235,18 @@ jobs:
               section_lines.append("")
           section_body = "\n".join(section_lines).rstrip() + "\n"
 
-          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-          manifest["version"] = next_version
-          manifest_path.write_text(
-              json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+          # Patch the version in place: re-serializing with json.dumps would
+          # reflow arrays and conflict with the prettier pre-commit hook.
+          manifest_text = manifest_path.read_text(encoding="utf-8")
+          manifest_text, replaced = re.subn(
+              r'("version":\s*)"[^"]*"',
+              lambda match: f'{match.group(1)}"{next_version}"',
+              manifest_text,
+              count=1,
           )
+          if not replaced:
+              raise SystemExit(f"No version field found in {manifest_path}")
+          manifest_path.write_text(manifest_text, encoding="utf-8")
 
           changelog_header = (
               "# Changelog\n\n"

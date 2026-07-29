@@ -76,6 +76,33 @@ Manual setup asks for:
 Discovered devices may also ask for credentials if the first connection attempt
 requires authentication.
 
+## Custom topic definitions
+
+The integration ships an empty overlay file at
+`custom_components/victron_gx_hub/victron_mqtt.json`. Edit that file to add or
+change MQTT topic definitions without waiting for a `victron-mqtt` library
+release.
+
+Overlay entries use the same JSON shape as upstream's published dump. Each
+entry is matched by `short_id`:
+
+- Matching `short_id` replaces the library built-in in place
+- Unknown `short_id` values are appended
+- Topics not listed in the overlay are left untouched, including the
+  `MetricKind.ATTRIBUTE` topics that populate device model, serial, firmware,
+  and manufacturer
+
+Copy topic or enum entries from the upstream
+[`victron_mqtt.json`](https://github.com/tomer-w/victron_mqtt/blob/main/victron_mqtt.json)
+dump, or generate one against the pinned library version:
+
+```bash
+python -m victron_mqtt.utils.dump_victron_mqtt out.json
+```
+
+Reload the config entry after editing the overlay so the new definitions are
+applied before the hub connects.
+
 ## Development Setup
 
 Run the bootstrap script from the repository root. It creates `.venv`, installs

@@ -1759,6 +1759,18 @@
           "sustain_alt": "Sustain alt"
         }
       },
+      "system_timers_time_off": {
+        "name": "Time inverter off"
+      },
+      "system_timers_time_on_generator": {
+        "name": "Time on generator"
+      },
+      "system_timers_time_on_grid": {
+        "name": "Time on grid"
+      },
+      "system_timers_time_on_inverter": {
+        "name": "Time inverting"
+      },
       "tank_battery_voltage": {
         "name": "Sensor battery voltage"
       },
