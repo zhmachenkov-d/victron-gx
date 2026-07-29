@@ -212,26 +212,24 @@ def apply_topic_overlay(path: Path = OVERLAY_PATH) -> None:
         data = _read_overlay_file(path)
     except Exception:  # noqa: BLE001 - never fail setup on overlay errors
         _LOGGER.warning(
-            "Failed to read topic overlay at %s; leaving built-in topics intact",
+            "Failed to read topic overlay at %s; leaving current topics intact",
             path,
             exc_info=True,
         )
-        topics[:] = list(_builtin_topics_snapshot)
         return
 
     if data is None:
-        topics[:] = list(_builtin_topics_snapshot)
+        # Missing overlay must not strip topics already applied by another entry.
         return
 
     try:
         overlay_topics = _parse_overlay_topics(data)
     except Exception:  # noqa: BLE001 - never fail setup on overlay errors
         _LOGGER.warning(
-            "Failed to parse topic overlay at %s; leaving built-in topics intact",
+            "Failed to parse topic overlay at %s; leaving current topics intact",
             path,
             exc_info=True,
         )
-        topics[:] = list(_builtin_topics_snapshot)
         return
 
     merged, overridden, added = _merge_topics(_builtin_topics_snapshot, overlay_topics)

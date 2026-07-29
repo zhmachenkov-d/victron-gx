@@ -255,7 +255,7 @@ async def test_overlay_apply_twice_is_idempotent(
 async def test_overlay_unreadable_file_leaves_builtins(
     hass: HomeAssistant, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """An invalid overlay file logs a warning and restores built-ins."""
+    """An invalid overlay file logs a warning and leaves topics unchanged."""
     snapshot = list(topics)
     overlay_path = tmp_path / "victron_mqtt.json"
     overlay_path.write_text("{not-json", encoding="utf-8")
@@ -265,3 +265,37 @@ async def test_overlay_unreadable_file_leaves_builtins(
 
     assert topics == snapshot
     assert "Failed to read topic overlay" in caplog.text
+
+
+async def test_failed_overlay_preserves_active_custom_topics(
+    hass: HomeAssistant, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A later failed or missing overlay must not strip an active custom topic."""
+    valid_path = _write_overlay(
+        tmp_path / "valid.json",
+        topics_data=[_sensor_topic("custom_overlay_metric", "Custom overlay metric")],
+    )
+    await topics_module.async_apply_topic_overlay(hass, valid_path)
+    assert any(topic.short_id == "custom_overlay_metric" for topic in topics)
+    active_snapshot = list(topics)
+
+    missing_path = tmp_path / "missing.json"
+    await topics_module.async_apply_topic_overlay(hass, missing_path)
+    assert topics == active_snapshot
+
+    bad_json_path = tmp_path / "bad.json"
+    bad_json_path.write_text("{not-json", encoding="utf-8")
+    with caplog.at_level("WARNING"):
+        await topics_module.async_apply_topic_overlay(hass, bad_json_path)
+    assert topics == active_snapshot
+    assert "Failed to read topic overlay" in caplog.text
+
+    bad_structure_path = tmp_path / "bad_structure.json"
+    bad_structure_path.write_text(
+        json.dumps({"SchemaVersion": "1.0.0", "topics": "not-a-list", "enums": []}),
+        encoding="utf-8",
+    )
+    with caplog.at_level("WARNING"):
+        await topics_module.async_apply_topic_overlay(hass, bad_structure_path)
+    assert topics == active_snapshot
+    assert "Failed to parse topic overlay" in caplog.text
