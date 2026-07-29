@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 ATTRIBUTE_TOPIC_COUNT = 11
 OVERRIDE_PRECISION = 7
 APPEND_PRECISION = 3
+TIMER_PRECISION = 2
 
 
 @pytest.fixture(autouse=True)
@@ -304,9 +305,10 @@ async def test_shipped_overlay_exposes_system_runtime_timers(
         assert timer.name == name
         assert timer.generic_name == name
         assert timer.message_type == MetricKind.SENSOR
-        assert timer.metric_type == MetricType.TIME
+        assert timer.metric_type == MetricType.DURATION
         assert timer.metric_nature == MetricNature.TOTAL_INCREASING
         assert timer.value_type == ValueType.INT_SECONDS_TO_HOURS
+        assert timer.precision == TIMER_PRECISION
         assert timer.unit_of_measurement == "h"
 
 
