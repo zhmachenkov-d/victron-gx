@@ -1,0 +1,6 @@
+{
+  "SchemaVersion": "1.0.0",
+  "Comment": "Custom topic overlay for victron_gx_hub. Entries override library built-ins by short_id; unlisted topics are untouched.",
+  "topics": [],
+  "enums": []
+}
