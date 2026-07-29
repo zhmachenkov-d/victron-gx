@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-07-29
+
+### Features
+- add custom MQTT topic overlays (#10)
+
 ## [Unreleased]
 
 ### Features
