@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: ${{ github.workflow }}
@@ -21,6 +22,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.RELEASE_PAT }}
 
       - name: Verify tag matches manifest version
         if: startsWith(github.ref, 'refs/tags/')
@@ -34,8 +36,43 @@ jobs:
           fi
           echo "version=${TAG}" >> "$GITHUB_OUTPUT"
 
-      - name: Determine next version from Conventional Commits
+      - name: Tag merged release commit
         if: github.ref == 'refs/heads/main'
+        id: tag_release
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+        run: |
+          SUBJECT="$(git log -1 --pretty=%s)"
+          if [[ ! "$SUBJECT" =~ ^chore\(release\):\ v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "is_release_commit=false" >> "$GITHUB_OUTPUT"
+            echo "HEAD is not a release commit; continuing."
+            exit 0
+          fi
+
+          VERSION="${BASH_REMATCH[1]}"
+          MANIFEST_VERSION="$(python3 -c "import json; print(json.load(open('custom_components/victron_gx_hub/manifest.json'))['version'])")"
+          if [ "$VERSION" != "$MANIFEST_VERSION" ]; then
+            echo "Release commit version v${VERSION} does not match manifest ${MANIFEST_VERSION}"
+            exit 1
+          fi
+
+          TAG="v${VERSION}"
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "is_release_commit=true" >> "$GITHUB_OUTPUT"
+            echo "tagged=false" >> "$GITHUB_OUTPUT"
+            echo "Tag ${TAG} already exists; skipping."
+            exit 0
+          fi
+
+          git tag "${TAG}"
+          git push origin "${TAG}"
+          echo "is_release_commit=true" >> "$GITHUB_OUTPUT"
+          echo "tagged=true" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Created and pushed ${TAG}"
+
+      - name: Determine next version from Conventional Commits
+        if: github.ref == 'refs/heads/main' && steps.tag_release.outputs.is_release_commit != 'true'
         id: bump
         run: |
           python3 <<'PY'
@@ -234,46 +271,57 @@ jobs:
           print(section_body)
           PY
 
-      - name: Commit manifest and changelog
-        if: github.ref == 'refs/heads/main' && steps.bump.outputs.should_release == 'true'
-        id: release_commit
+      - name: Prepare and merge release PR
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          steps.tag_release.outputs.is_release_commit != 'true' &&
+          steps.bump.outputs.should_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          VERSION: ${{ steps.bump.outputs.version }}
+          CHANGELOG: ${{ steps.bump.outputs.changelog }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          BRANCH="automated-release"
+          SUBJECT="chore(release): v${VERSION}"
+
+          git checkout -B "${BRANCH}"
           git add custom_components/victron_gx_hub/manifest.json CHANGELOG.md
-          git commit -m "chore(release): v${{ steps.bump.outputs.version }}"
-          git push
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          git commit -m "${SUBJECT}"
+          git push --force origin "HEAD:refs/heads/${BRANCH}"
+
+          PR_URL="$(gh pr list --head "${BRANCH}" --base main --state open --json url --jq '.[0].url // empty')"
+          if [ -z "${PR_URL}" ]; then
+            PR_URL="$(gh pr create \
+              --base main \
+              --head "${BRANCH}" \
+              --title "${SUBJECT}" \
+              --body "${CHANGELOG}")"
+          else
+            gh pr edit "${PR_URL}" --title "${SUBJECT}" --body "${CHANGELOG}"
+          fi
+
+          gh pr merge "${PR_URL}" --admin --squash \
+            --subject "${SUBJECT}" \
+            --body ""
+
+          echo "Merged ${PR_URL} as ${SUBJECT}"
 
       - name: Create component ZIP
-        if: >-
-          startsWith(github.ref, 'refs/tags/') ||
-          (github.ref == 'refs/heads/main' && steps.bump.outputs.should_release == 'true')
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           cd custom_components/victron_gx_hub
           zip -r ../../victron_gx_hub.zip . \
             -x "*/__pycache__/*" "*__pycache__*" "*.pyc"
 
       - name: Upload release artifact
-        if: >-
-          startsWith(github.ref, 'refs/tags/') ||
-          (github.ref == 'refs/heads/main' && steps.bump.outputs.should_release == 'true')
+        if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v4
         with:
-          name: victron_gx_hub-${{ steps.tag_version.outputs.version || steps.bump.outputs.version }}
+          name: victron_gx_hub-${{ steps.tag_version.outputs.version }}
           path: victron_gx_hub.zip
-
-      - name: Create GitHub Release (auto)
-        if: github.ref == 'refs/heads/main' && steps.bump.outputs.should_release == 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.bump.outputs.version }}
-          name: v${{ steps.bump.outputs.version }}
-          target_commitish: ${{ steps.release_commit.outputs.sha }}
-          body: ${{ steps.bump.outputs.changelog }}
-          draft: false
-          generate_release_notes: false
-          files: victron_gx_hub.zip
 
       - name: Create GitHub Release (tag)
         if: startsWith(github.ref, 'refs/tags/')
