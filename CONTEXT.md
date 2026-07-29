@@ -19,3 +19,7 @@ _Avoid_: component (when meaning the whole package)
 **Custom repository**:
 A GitHub repo users add manually in HACS (not in the default store).
 _Avoid_: default repository
+
+**System runtime timer**:
+A GX-maintained cumulative duration since the latest GX reboot: time on grid, time on generator, time inverting, or time inverter off.
+_Avoid_: uptime (when meaning a specific mode), lifetime hours

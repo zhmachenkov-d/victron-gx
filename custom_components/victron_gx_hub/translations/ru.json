@@ -1759,6 +1759,18 @@
           "sustain_alt": "Sustain alt"
         }
       },
+      "system_timers_time_off": {
+        "name": "Время выключения инвертора"
+      },
+      "system_timers_time_on_generator": {
+        "name": "Время на генераторе"
+      },
+      "system_timers_time_on_grid": {
+        "name": "Время на сети"
+      },
+      "system_timers_time_on_inverter": {
+        "name": "Время инвертирования"
+      },
       "tank_battery_voltage": {
         "name": "Напряжение батареи датчика"
       },

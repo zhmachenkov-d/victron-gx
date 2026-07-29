@@ -1761,6 +1761,18 @@
           "sustain_alt": "[%key:component::victron_gx_hub::common::sustain_alt%]"
         }
       },
+      "system_timers_time_off": {
+        "name": "Time inverter off"
+      },
+      "system_timers_time_on_generator": {
+        "name": "Time on generator"
+      },
+      "system_timers_time_on_grid": {
+        "name": "Time on grid"
+      },
+      "system_timers_time_on_inverter": {
+        "name": "Time inverting"
+      },
       "tank_battery_voltage": {
         "name": "[%key:component::victron_gx_hub::common::sensor_battery_voltage%]"
       },

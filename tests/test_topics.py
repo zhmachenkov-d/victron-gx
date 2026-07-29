@@ -7,7 +7,13 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 from victron_mqtt._victron_topics import topics
-from victron_mqtt.constants import MetricKind, VictronEnum
+from victron_mqtt.constants import (
+    MetricKind,
+    MetricNature,
+    MetricType,
+    ValueType,
+    VictronEnum,
+)
 
 from custom_components.victron_gx_hub import topics as topics_module
 
@@ -265,6 +271,43 @@ async def test_overlay_unreadable_file_leaves_builtins(
 
     assert topics == snapshot
     assert "Failed to read topic overlay" in caplog.text
+
+
+async def test_shipped_overlay_exposes_system_runtime_timers(
+    hass: HomeAssistant,
+) -> None:
+    """Load the production overlay and verify the four GX runtime timers."""
+    expected = {
+        "system_timers_time_on_grid": (
+            "N/{installation_id}/system/{device_id}/Timers/TimeOnGrid",
+            "Time on grid",
+        ),
+        "system_timers_time_on_generator": (
+            "N/{installation_id}/system/{device_id}/Timers/TimeOnGenerator",
+            "Time on generator",
+        ),
+        "system_timers_time_on_inverter": (
+            "N/{installation_id}/system/{device_id}/Timers/TimeOnInverter",
+            "Time inverting",
+        ),
+        "system_timers_time_off": (
+            "N/{installation_id}/system/{device_id}/Timers/TimeOff",
+            "Time inverter off",
+        ),
+    }
+
+    await topics_module.async_apply_topic_overlay(hass)
+
+    for short_id, (topic_path, name) in expected.items():
+        timer = next(topic for topic in topics if topic.short_id == short_id)
+        assert timer.topic == topic_path
+        assert timer.name == name
+        assert timer.generic_name == name
+        assert timer.message_type == MetricKind.SENSOR
+        assert timer.metric_type == MetricType.TIME
+        assert timer.metric_nature == MetricNature.TOTAL_INCREASING
+        assert timer.value_type == ValueType.INT_SECONDS_TO_HOURS
+        assert timer.unit_of_measurement == "h"
 
 
 async def test_failed_overlay_preserves_active_custom_topics(
