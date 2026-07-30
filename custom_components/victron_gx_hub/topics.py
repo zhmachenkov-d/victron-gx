@@ -23,6 +23,8 @@ from victron_mqtt.data_classes import (
     TopicDescriptor,
 )
 
+from .formulas import register_formulas
+
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
@@ -204,6 +206,8 @@ def _merge_topics(
 def apply_topic_overlay(path: Path = OVERLAY_PATH) -> None:
     """Read ``path`` and mutate the library topics list in place."""
     global _builtin_topics_snapshot  # noqa: PLW0603 - module-level pristine cache
+
+    register_formulas()
 
     if _builtin_topics_snapshot is None:
         _builtin_topics_snapshot = list(topics)
