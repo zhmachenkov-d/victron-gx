@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [1.2.1] - 2026-07-29
 
 ### Bug Fixes
+
 - map runtime timers to duration sensors (#12)
 
 ## [1.2.0] - 2026-07-29

@@ -23,3 +23,7 @@ _Avoid_: default repository
 **System runtime timer**:
 A GX-maintained cumulative duration since the latest GX reboot: time on grid, time on generator, time inverting, or time inverter off.
 _Avoid_: uptime (when meaning a specific mode), lifetime hours
+
+**AC input 1 energy**:
+Cumulative energy entering VE.Bus through AC input 1, comprising energy routed to AC output and to the inverter.
+_Avoid_: grid energy

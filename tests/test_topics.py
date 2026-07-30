@@ -312,6 +312,41 @@ async def test_shipped_overlay_exposes_system_runtime_timers(
         assert timer.unit_of_measurement == "h"
 
 
+async def test_shipped_overlay_exposes_ac_input_1_energy_formula(
+    hass: HomeAssistant,
+) -> None:
+    """Load the production overlay and verify the AC input 1 energy formula."""
+    await topics_module.async_apply_topic_overlay(hass)
+
+    formula = next(
+        topic for topic in topics if topic.short_id == "vebus_energy_ac_in1_total"
+    )
+    assert formula.topic == "$$func/vebus/sum_required"
+    assert formula.name == "AC input 1 energy"
+    assert formula.generic_name == "AC input 1 energy"
+    assert formula.message_type == MetricKind.SENSOR
+    assert formula.metric_type == MetricType.ENERGY
+    assert formula.metric_nature == MetricNature.TOTAL
+    assert formula.value_type == ValueType.FLOAT
+    assert formula.precision == 1
+    assert formula.unit_of_measurement == "kWh"
+    assert formula.is_formula is True
+    assert formula.hidden is False
+    assert formula.depends_on == [
+        "vebus_energy_ac_in1_to_ac_out",
+        "vebus_energy_ac_in1_to_inverter",
+    ]
+
+    # Source path sensors remain visible in the library topic list.
+    for short_id in (
+        "vebus_energy_ac_in1_to_ac_out",
+        "vebus_energy_ac_in1_to_inverter",
+    ):
+        source = next(topic for topic in topics if topic.short_id == short_id)
+        assert source.hidden is False
+        assert source.is_formula is False
+
+
 async def test_failed_overlay_preserves_active_custom_topics(
     hass: HomeAssistant, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

@@ -1857,6 +1857,9 @@
       "vebus_energy_ac_in1_to_inverter": {
         "name": "Energy from AC-in-1 to inverter"
       },
+      "vebus_energy_ac_in1_total": {
+        "name": "AC input 1 energy"
+      },
       "vebus_energy_ac_in2_to_ac_out": {
         "name": "Energy from AC-in-2 to AC-out"
       },
