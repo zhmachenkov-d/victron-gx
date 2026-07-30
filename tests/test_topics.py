@@ -306,7 +306,7 @@ async def test_shipped_overlay_exposes_system_runtime_timers(
         assert timer.generic_name == name
         assert timer.message_type == MetricKind.SENSOR
         assert timer.metric_type == MetricType.DURATION
-        assert timer.metric_nature == MetricNature.TOTAL
+        assert timer.metric_nature == MetricNature.TOTAL_INCREASING
         assert timer.value_type == ValueType.INT_SECONDS_TO_HOURS
         assert timer.precision == TIMER_PRECISION
         assert timer.unit_of_measurement == "h"
