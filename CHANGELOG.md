@@ -5,9 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [1.3.0] - 2026-07-30
 
 ### Features
+
 - add AC input 1 energy formula sensor
 
 ### Bug Fixes
+
 - keep runtime timers as total increasing
 - use total state class for overlay metrics
 
