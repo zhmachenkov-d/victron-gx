@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.1] - 2026-10-02
+
+### Bug Fixes
+- allow victron-mqtt to track Home Assistant updates
+- pin victron-mqtt to 2026.9.5 for hassfest
+- bump victron-mqtt to 2026.9.14
+- bump victron-mqtt to 2026.9.5 for hassfest compatibility
+
 ## [1.3.0] - 2026-07-30
 
 ### Features
