@@ -13,6 +13,8 @@ CONF_CA_CERT = "ca_cert"
 
 # Maps to hub update_frequency_seconds=None (update on every value change).
 UPDATE_FREQUENCY_REALTIME = "realtime"
+# Pre-2026.8.x library profile; maps to UPDATE_FREQUENCY_AUTO_UNTHROTTLED.
+LEGACY_UPDATE_FREQUENCY_AUTO_POWER_NONE = "auto_power_none"
 
 DIAGNOSTICS_REDACT = frozenset(
     {

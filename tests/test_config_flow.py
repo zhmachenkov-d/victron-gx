@@ -20,7 +20,7 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from victron_mqtt import (
     UPDATE_FREQUENCY_AUTO,
-    UPDATE_FREQUENCY_AUTO_POWER_NONE,
+    UPDATE_FREQUENCY_AUTO_UNTHROTTLED,
     AuthenticationError,
     CannotConnectError,
 )
@@ -142,8 +142,11 @@ def test_normalize_update_interval() -> None:
         {CONF_UPDATE_INTERVAL: UPDATE_FREQUENCY_AUTO}
     ) == {CONF_UPDATE_INTERVAL: UPDATE_FREQUENCY_AUTO}
     assert _normalize_update_interval(
-        {CONF_UPDATE_INTERVAL: UPDATE_FREQUENCY_AUTO_POWER_NONE}
-    ) == {CONF_UPDATE_INTERVAL: UPDATE_FREQUENCY_AUTO_POWER_NONE}
+        {CONF_UPDATE_INTERVAL: UPDATE_FREQUENCY_AUTO_UNTHROTTLED}
+    ) == {CONF_UPDATE_INTERVAL: UPDATE_FREQUENCY_AUTO_UNTHROTTLED}
+    assert _normalize_update_interval({CONF_UPDATE_INTERVAL: "auto_power_none"}) == {
+        CONF_UPDATE_INTERVAL: UPDATE_FREQUENCY_AUTO_UNTHROTTLED
+    }
     assert _normalize_update_interval({CONF_UPDATE_INTERVAL_SECONDS: 45}) == {
         CONF_UPDATE_INTERVAL: 45
     }
@@ -166,6 +169,10 @@ def test_resolve_update_frequency_defaults_to_none() -> None:
     assert (
         resolve_update_frequency({CONF_UPDATE_INTERVAL_SECONDS: LEGACY_UPDATE_INTERVAL})
         == LEGACY_UPDATE_INTERVAL
+    )
+    assert (
+        resolve_update_frequency({CONF_UPDATE_INTERVAL: "auto_power_none"})
+        == UPDATE_FREQUENCY_AUTO_UNTHROTTLED
     )
 
 

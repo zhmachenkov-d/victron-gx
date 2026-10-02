@@ -21,7 +21,7 @@ from homeassistant.helpers import selector
 from homeassistant.helpers.redact import async_redact_data
 from victron_mqtt import (
     UPDATE_FREQUENCY_AUTO,
-    UPDATE_FREQUENCY_AUTO_POWER_NONE,
+    UPDATE_FREQUENCY_AUTO_UNTHROTTLED,
     AuthenticationError,
     CannotConnectError,
     Hub as VictronVenusHub,
@@ -35,6 +35,7 @@ from .const import (
     CONF_UPDATE_INTERVAL,
     CONF_UPDATE_INTERVAL_SECONDS,
     DOMAIN,
+    LEGACY_UPDATE_FREQUENCY_AUTO_POWER_NONE,
     UPDATE_FREQUENCY_REALTIME,
 )
 from .hub import resolve_update_frequency
@@ -59,7 +60,7 @@ UPDATE_INTERVAL_PROFILES = frozenset(
     {
         UPDATE_FREQUENCY_REALTIME,
         UPDATE_FREQUENCY_AUTO,
-        UPDATE_FREQUENCY_AUTO_POWER_NONE,
+        UPDATE_FREQUENCY_AUTO_UNTHROTTLED,
     }
 )
 
@@ -71,7 +72,7 @@ UPDATE_INTERVAL_SELECTOR = selector.SelectSelector(
         options=[
             UPDATE_FREQUENCY_REALTIME,
             UPDATE_FREQUENCY_AUTO,
-            UPDATE_FREQUENCY_AUTO_POWER_NONE,
+            UPDATE_FREQUENCY_AUTO_UNTHROTTLED,
         ],
         custom_value=True,
         mode=selector.SelectSelectorMode.DROPDOWN,
@@ -208,6 +209,8 @@ def _normalize_update_interval(data: dict[str, Any]) -> dict[str, Any]:
     value = normalized[CONF_UPDATE_INTERVAL]
     if value in (None, ""):
         normalized[CONF_UPDATE_INTERVAL] = UPDATE_FREQUENCY_REALTIME
+    elif value == LEGACY_UPDATE_FREQUENCY_AUTO_POWER_NONE:
+        normalized[CONF_UPDATE_INTERVAL] = UPDATE_FREQUENCY_AUTO_UNTHROTTLED
     elif value in UPDATE_INTERVAL_PROFILES:
         normalized[CONF_UPDATE_INTERVAL] = value
     else:

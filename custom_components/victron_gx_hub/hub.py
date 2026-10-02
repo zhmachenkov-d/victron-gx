@@ -18,6 +18,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.redact import async_redact_data
 from victron_mqtt import (
+    UPDATE_FREQUENCY_AUTO_UNTHROTTLED,
     AuthenticationError,
     CannotConnectError,
     Device as VictronVenusDevice,
@@ -36,6 +37,7 @@ from .const import (
     CONF_UPDATE_INTERVAL,
     CONF_UPDATE_INTERVAL_SECONDS,
     DOMAIN,
+    LEGACY_UPDATE_FREQUENCY_AUTO_POWER_NONE,
     UPDATE_FREQUENCY_REALTIME,
 )
 from .ssl_util import build_ssl_context
@@ -63,6 +65,8 @@ def resolve_update_frequency(config: dict[str, Any]) -> int | str | None:
         value = config.get(CONF_UPDATE_INTERVAL_SECONDS)
     if value == UPDATE_FREQUENCY_REALTIME:
         return None
+    if value == LEGACY_UPDATE_FREQUENCY_AUTO_POWER_NONE:
+        return UPDATE_FREQUENCY_AUTO_UNTHROTTLED
     return value
 
 
