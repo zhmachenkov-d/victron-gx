@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import logging
 from pathlib import Path
@@ -78,17 +79,21 @@ def _decode_dependency(raw: Any) -> str | TopicDependency:
     return raw
 
 
+_TOPIC_DESCRIPTOR_FIELDS = frozenset(TopicDescriptor.__dataclass_fields__)
+# victron-mqtt>=2026.9.14 added a VictronEnum member field named description.
+_ENUM_MEMBER_INCLUDES_DESCRIPTION = (
+    "description" in inspect.signature(VictronEnum.__init__).parameters
+)
+
+
 def _synthesize_enum(enum_dump: dict[str, Any]) -> type[VictronEnum]:
     """Build a VictronEnum subclass from an overlay enums section entry."""
-    members = {
-        entry["id"].upper(): (
-            entry["value"],
-            entry["id"],
-            entry["name"],
-            entry.get("description", entry["name"]),
-        )
-        for entry in enum_dump["EnumValues"]
-    }
+    members: dict[str, tuple[Any, ...]] = {}
+    for entry in enum_dump["EnumValues"]:
+        member: tuple[Any, ...] = (entry["value"], entry["id"], entry["name"])
+        if _ENUM_MEMBER_INCLUDES_DESCRIPTION:
+            member = (*member, entry.get("description", entry["name"]))
+        members[entry["id"].upper()] = member
     return VictronEnum(enum_dump["name"], members)
 
 
@@ -122,8 +127,6 @@ def _decode_topic(
 ) -> TopicDescriptor:
     """Decode one overlay topic entry into a TopicDescriptor."""
     data = dict(raw)
-    data.pop("generic_name", None)
-    data.pop("is_formula", None)
 
     for key in (
         "message_type",
@@ -154,10 +157,15 @@ def _decode_topic(
                 raise KeyError(msg)
         data["enum"] = enum_map[enum_name]
 
-    # victron-mqtt>=2026.9.14 asserts descriptor.description in Metric.phase2_init.
-    if not data.get("description"):
+    # Keep overlays portable across victron-mqtt TopicDescriptor shapes:
+    # pre-2026.9.14 keeps generic_name/is_formula; 2026.9.14+ requires description
+    # and drops those two fields.
+    if "description" in _TOPIC_DESCRIPTOR_FIELDS and not data.get("description"):
         data["description"] = data.get("name") or data.get("short_id")
 
+    data = {
+        key: value for key, value in data.items() if key in _TOPIC_DESCRIPTOR_FIELDS
+    }
     return TopicDescriptor(**data)
 
 
