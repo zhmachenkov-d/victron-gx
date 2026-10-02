@@ -36,7 +36,7 @@ jobs:
         run: |
           codespell \
             --ignore-words-list=additionals,alle,alot,bund,currenty,datas,farenheit,falsy,fo,haa,hass,iif,incomfort,ines,ist,nam,nd,pres,pullrequests,resset,rime,ser,serie,te,technik,ue,unsecure,withing,zar \
-            --skip="./.*,*.csv,*.json,*.ambr" \
+            --skip="./.*,*.csv,*.json,*.ambr,.agents,_bmad,_bmad-output" \
             --quiet-level=2
 
       - name: Prettier

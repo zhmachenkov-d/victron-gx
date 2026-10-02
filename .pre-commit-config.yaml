@@ -9,20 +9,24 @@ repos:
     hooks:
       - id: ruff-check
         args: [--fix]
+        exclude: ^(\.agents|_bmad|_bmad-output)/
       - id: ruff-format
+        exclude: ^(\.agents|_bmad|_bmad-output)/
   - repo: https://github.com/codespell-project/codespell
     rev: v2.2.2
     hooks:
       - id: codespell
         args:
           - --ignore-words-list=additionals,alle,alot,bund,currenty,datas,farenheit,falsy,fo,haa,hass,iif,incomfort,ines,ist,nam,nd,pres,pullrequests,resset,rime,ser,serie,te,technik,ue,unsecure,withing,zar
-          - --skip="./.*,*.csv,*.json,*.ambr"
+          - --skip="./.*,*.csv,*.json,*.ambr,.agents,_bmad,_bmad-output"
           - --quiet-level=2
         exclude_types: [csv, json]
+        exclude: ^(\.agents|_bmad|_bmad-output)/
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: v2.7.1
     hooks:
       - id: prettier
+        exclude: ^(\.agents|_bmad|_bmad-output)/
   - repo: https://github.com/cdce8p/python-typing-update
     rev: v0.6.0
     hooks:
