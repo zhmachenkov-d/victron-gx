@@ -246,3 +246,6 @@ config/.storage/lovelace_dashboards
 config/.storage/lovelace.map
 config/.storage/onboarding
 config/.storage/person
+
+# BMad generated skill render cache
+_bmad/render/
