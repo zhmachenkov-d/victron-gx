@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_HOST,
-    CONF_MODEL,
     CONF_PASSWORD,
     CONF_PORT,
     CONF_SSL,
@@ -33,7 +32,6 @@ from victron_mqtt import (
 from .const import (
     CONF_CA_CERT,
     CONF_INSTALLATION_ID,
-    CONF_SERIAL,
     CONF_UPDATE_INTERVAL,
     CONF_UPDATE_INTERVAL_SECONDS,
     DOMAIN,
@@ -99,8 +97,6 @@ class Hub:
             use_ssl=use_ssl,
             ssl_context=build_ssl_context(config),
             installation_id=config.get(CONF_INSTALLATION_ID) or None,
-            model_name=config.get(CONF_MODEL) or None,
-            serial=config.get(CONF_SERIAL) or None,
             operation_mode=OperationMode.FULL,
             update_frequency_seconds=resolve_update_frequency(config),
         )

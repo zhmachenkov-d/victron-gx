@@ -157,8 +157,8 @@ def test_hub_initializes_victron_client(
     assert victron_hub.kwargs["ssl_context"] is not None
     assert victron_hub.kwargs["ssl_context"].verify_mode.name == "CERT_NONE"
     assert victron_hub.kwargs["installation_id"] == INSTALLATION_ID
-    assert victron_hub.kwargs["model_name"] == MODEL
-    assert victron_hub.kwargs["serial"] == SERIAL
+    assert "model_name" not in victron_hub.kwargs
+    assert "serial" not in victron_hub.kwargs
     assert victron_hub.kwargs["operation_mode"] == OperationMode.FULL
     assert victron_hub.kwargs["update_frequency_seconds"] == UPDATE_INTERVAL
 

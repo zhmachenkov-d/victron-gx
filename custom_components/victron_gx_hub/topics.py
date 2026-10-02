@@ -81,7 +81,12 @@ def _decode_dependency(raw: Any) -> str | TopicDependency:
 def _synthesize_enum(enum_dump: dict[str, Any]) -> type[VictronEnum]:
     """Build a VictronEnum subclass from an overlay enums section entry."""
     members = {
-        entry["id"].upper(): (entry["value"], entry["id"], entry["name"])
+        entry["id"].upper(): (
+            entry["value"],
+            entry["id"],
+            entry["name"],
+            entry.get("description", entry["name"]),
+        )
         for entry in enum_dump["EnumValues"]
     }
     return VictronEnum(enum_dump["name"], members)
@@ -148,6 +153,10 @@ def _decode_topic(
                 msg = f"Unknown enum {enum_name!r}"
                 raise KeyError(msg)
         data["enum"] = enum_map[enum_name]
+
+    # victron-mqtt>=2026.9.14 asserts descriptor.description in Metric.phase2_init.
+    if not data.get("description"):
+        data["description"] = data.get("name") or data.get("short_id")
 
     return TopicDescriptor(**data)
 

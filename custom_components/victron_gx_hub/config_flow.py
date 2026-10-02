@@ -153,8 +153,6 @@ async def validate_input(data: dict[str, Any]) -> str:
             use_ssl=use_ssl,
             ssl_context=build_ssl_context(data),
             installation_id=data.get(CONF_INSTALLATION_ID) or None,
-            model_name=data.get(CONF_MODEL) or None,
-            serial=data.get(CONF_SERIAL) or None,
             update_frequency_seconds=resolve_update_frequency(data),
         )
 

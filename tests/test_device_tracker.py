@@ -64,6 +64,7 @@ class FakeMetric:
 
     def __post_init__(self) -> None:
         self._descriptor = SimpleNamespace(
+            short_id="gps_location",
             unit_of_measurement=None,
             metric_type=MetricType.LOCATION,
             precision=None,

@@ -74,6 +74,7 @@ class FakeWritableMetric(VictronVenusWritableMetric):
     def __init__(self, spec: FakeMetricSpec | None = None) -> None:
         spec = spec or FakeMetricSpec()
         self._descriptor = SimpleNamespace(
+            short_id="charge_current_limit",
             unit_of_measurement=spec.unit_of_measurement,
             metric_type=spec.metric_type,
             precision=None,

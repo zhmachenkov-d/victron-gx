@@ -226,8 +226,8 @@ async def test_validate_input_connects_and_disconnects(
     assert hub.kwargs["use_ssl"] is False
     assert hub.kwargs["ssl_context"] is None
     assert hub.kwargs["installation_id"] == INSTALLATION_ID
-    assert hub.kwargs["model_name"] == MODEL
-    assert hub.kwargs["serial"] == SERIAL
+    assert "model_name" not in hub.kwargs
+    assert "serial" not in hub.kwargs
     assert hub.kwargs["update_frequency_seconds"] == VALIDATE_UPDATE_INTERVAL
     hub.connect.assert_awaited_once()
     hub.disconnect.assert_awaited_once()

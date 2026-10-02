@@ -121,6 +121,7 @@ async def test_overlay_overrides_existing_short_id(
     updated = next(topic for topic in topics if topic.short_id == original.short_id)
     assert updated.name == "Overlay renamed metric"
     assert updated.precision == OVERRIDE_PRECISION
+    assert updated.description == "Overlay renamed metric"
 
 
 async def test_overlay_appends_new_short_id(
@@ -138,6 +139,7 @@ async def test_overlay_appends_new_short_id(
     assert len(topics) == original_length + 1
     assert topics[-1].short_id == "custom_overlay_metric"
     assert topics[-1].name == "Custom overlay metric"
+    assert topics[-1].description == "Custom overlay metric"
 
 
 async def test_overlay_preserves_attribute_topics(
@@ -181,8 +183,18 @@ async def test_overlay_synthesizes_enum_from_file(
             {
                 "name": "OverlayOnlyMode",
                 "EnumValues": [
-                    {"id": "off", "name": "Off", "value": 0},
-                    {"id": "on", "name": "On", "value": 1},
+                    {
+                        "id": "off",
+                        "name": "Off",
+                        "value": 0,
+                        "description": "Off",
+                    },
+                    {
+                        "id": "on",
+                        "name": "On",
+                        "value": 1,
+                        "description": "On",
+                    },
                 ],
             }
         ],

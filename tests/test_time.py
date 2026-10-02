@@ -63,6 +63,7 @@ class FakeWritableMetric(VictronVenusWritableMetric):
         unique_id: str = "metric_1",
     ) -> None:
         self._descriptor = SimpleNamespace(
+            short_id="schedule_start",
             unit_of_measurement="min",
             metric_type=MetricType.TIME,
             precision=None,
