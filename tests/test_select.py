@@ -64,6 +64,7 @@ class FakeWritableMetric(VictronVenusWritableMetric):
     def __init__(self, spec: FakeMetricSpec | None = None) -> None:
         spec = spec or FakeMetricSpec()
         self._descriptor = SimpleNamespace(
+            short_id="select_mode",
             unit_of_measurement=None,
             metric_type=MetricType.ENUM,
             precision=None,

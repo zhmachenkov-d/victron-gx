@@ -27,7 +27,8 @@
       "is_formula": false,
       "main_topic": false,
       "hidden": false,
-      "sub_device_key": null
+      "sub_device_key": null,
+      "description": "Cumulative time the system has been powered by the grid since last reboot."
     },
     {
       "topic": "N/{installation_id}/system/{device_id}/Timers/TimeOnGenerator",
@@ -54,7 +55,8 @@
       "is_formula": false,
       "main_topic": false,
       "hidden": false,
-      "sub_device_key": null
+      "sub_device_key": null,
+      "description": "Cumulative time the system has been powered by the generator since last reboot."
     },
     {
       "topic": "N/{installation_id}/system/{device_id}/Timers/TimeOnInverter",
@@ -81,7 +83,8 @@
       "is_formula": false,
       "main_topic": false,
       "hidden": false,
-      "sub_device_key": null
+      "sub_device_key": null,
+      "description": "Cumulative time the system has been inverting since last reboot."
     },
     {
       "topic": "N/{installation_id}/system/{device_id}/Timers/TimeOff",
@@ -108,7 +111,8 @@
       "is_formula": false,
       "main_topic": false,
       "hidden": false,
-      "sub_device_key": null
+      "sub_device_key": null,
+      "description": "Cumulative time the inverter has been off since last reboot."
     },
     {
       "topic": "$$func/vebus/sum_required",
@@ -138,7 +142,8 @@
       "is_formula": true,
       "main_topic": false,
       "hidden": false,
-      "sub_device_key": null
+      "sub_device_key": null,
+      "description": "Total energy drawn from AC input 1 (to AC out plus to inverter)."
     }
   ],
   "enums": []

@@ -56,6 +56,7 @@ class FakeWritableMetric(VictronVenusWritableMetric):
         unique_id: str = "metric_1",
     ) -> None:
         self._descriptor = SimpleNamespace(
+            short_id="switch_state",
             unit_of_measurement=None,
             metric_type=MetricType.ENUM,
             precision=None,

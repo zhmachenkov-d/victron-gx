@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_HOST,
-    CONF_MODEL,
     CONF_PASSWORD,
     CONF_PORT,
     CONF_SSL,
@@ -18,6 +17,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.redact import async_redact_data
 from victron_mqtt import (
+    UPDATE_FREQUENCY_AUTO_UNTHROTTLED,
     AuthenticationError,
     CannotConnectError,
     Device as VictronVenusDevice,
@@ -32,10 +32,10 @@ from victron_mqtt import (
 from .const import (
     CONF_CA_CERT,
     CONF_INSTALLATION_ID,
-    CONF_SERIAL,
     CONF_UPDATE_INTERVAL,
     CONF_UPDATE_INTERVAL_SECONDS,
     DOMAIN,
+    LEGACY_UPDATE_FREQUENCY_AUTO_POWER_NONE,
     UPDATE_FREQUENCY_REALTIME,
 )
 from .ssl_util import build_ssl_context
@@ -63,6 +63,8 @@ def resolve_update_frequency(config: dict[str, Any]) -> int | str | None:
         value = config.get(CONF_UPDATE_INTERVAL_SECONDS)
     if value == UPDATE_FREQUENCY_REALTIME:
         return None
+    if value == LEGACY_UPDATE_FREQUENCY_AUTO_POWER_NONE:
+        return UPDATE_FREQUENCY_AUTO_UNTHROTTLED
     return value
 
 
@@ -95,8 +97,6 @@ class Hub:
             use_ssl=use_ssl,
             ssl_context=build_ssl_context(config),
             installation_id=config.get(CONF_INSTALLATION_ID) or None,
-            model_name=config.get(CONF_MODEL) or None,
-            serial=config.get(CONF_SERIAL) or None,
             operation_mode=OperationMode.FULL,
             update_frequency_seconds=resolve_update_frequency(config),
         )

@@ -43,6 +43,7 @@ class FakeWritableMetric(VictronVenusWritableMetric):
 
     def __init__(self, unique_id: str = "metric_1") -> None:
         self._descriptor = SimpleNamespace(
+            short_id="platform_device_reboot",
             unit_of_measurement=None,
             metric_type=MetricType.RESTART,
             precision=None,
